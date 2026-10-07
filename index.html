@@ -2739,42 +2739,79 @@ canvas{display:block}
     opacity:.85;
 }
 
-/* While touch racing owns the screen the desktop HUD steps
-   aside: legend hidden, panels compacted and lifted clear
-   of the thumb zones. Data sources are untouched. */
-body.mobile-racing #controls,
-body.mobile-racing #collisionStatus{display:none}
-
-body.mobile-racing #telemetry{
-    bottom:calc(14px + env(safe-area-inset-bottom));
+/* Mobile racing owns the screen: the ENTIRE persistent
+   desktop HUD is hidden (not shrunk, not moved). Only the
+   transient centre-screen race signals - countdown, race
+   messages and start lights - stay visible so the player
+   still gets the start. Touch controls are the only UI.
+   Desktop is untouched: every rule below is scoped to
+   body.mobile-racing, which is set only while a mobile
+   session is live. */
+body.mobile-racing #hud > :not(#countdown):not(#message):not(#startLights){
+    display:none!important;
 }
 
-body.mobile-racing #raceLeaderboard{opacity:.92}
-
-body.mobile-racing #miniMap{
-    bottom:calc(250px + env(safe-area-inset-bottom));
+body.mobile-racing #hudSessionBar{
+    display:none!important;
 }
 
-body.mobile-racing #tyrePanel{
-    bottom:calc(236px + env(safe-area-inset-bottom));
+/* Compact semi-transparent edge controls. Everything hugs
+   the left/right/bottom edges; the centre of the screen,
+   the car and the upcoming corner stay clear. */
+body.mobile-racing #mobileSteerZone{
+    left:calc(8px + env(safe-area-inset-left));
+    bottom:calc(18px + env(safe-area-inset-bottom));
+    opacity:.82;
 }
+
+body.mobile-racing #mobileSteerPad{
+    width:min(30vw,138px);
+    height:min(30vw,138px);
+    min-width:92px;
+    min-height:92px;
+    background:radial-gradient(circle at 50% 42%,rgba(30,38,48,.42),rgba(8,12,17,.42));
+    box-shadow:none;
+}
+
+body.mobile-racing .mobile-zone-label{display:none}
+
+body.mobile-racing #mobilePedals{
+    right:calc(8px + env(safe-area-inset-right));
+    bottom:calc(18px + env(safe-area-inset-bottom));
+    gap:8px;
+    opacity:.82;
+}
+
+body.mobile-racing .mobile-pedal{
+    width:min(23vw,100px);
+    height:min(23vw,100px);
+    min-width:76px;
+    min-height:76px;
+    font-size:11px;
+    background:rgba(10,15,21,.38);
+    box-shadow:none;
+}
+
+body.mobile-racing .mobile-mini{
+    min-width:48px;
+    height:32px;
+    padding:0 8px;
+    font-size:10px;
+    background:rgba(10,15,21,.38);
+}
+
+body.mobile-racing #mobileFullscreen{
+    top:calc(10px + env(safe-area-inset-top));
+    width:34px;
+    height:34px;
+    font-size:14px;
+    opacity:.6;
+}
+
+body.mobile-racing #mobileLandscapeHint{display:none!important}
 
 @media(max-width:640px){
     .mode-toggle{grid-template-columns:1fr}
-    body.mobile-racing #raceLeaderboard{
-        width:178px;
-        top:64px;
-    }
-    body.mobile-racing #miniMap{
-        width:132px;
-        height:100px;
-    }
-    body.mobile-racing #tyrePanel{
-        min-width:104px;
-        bottom:calc(228px + env(safe-area-inset-bottom));
-    }
-    #mobileSteerZone{bottom:calc(190px + env(safe-area-inset-bottom))}
-    #mobilePedals{bottom:calc(190px + env(safe-area-inset-bottom))}
 }
 
 </style>
@@ -3502,13 +3539,79 @@ scene.fog =
 
 /* =========================================================
    RENDERER
+   ---------------------------------------------------------
+   MOBILE_RENDER_TIER is renderer cost only: coarse pointer
+   plus a phone-class screen. It never decides UI mode;
+   the racing HUD and touch controls keep following the
+   existing mobileMode flag. Desktop settings are
+   byte-identical to before.
    ========================================================= */
 
-const renderer =
-    new THREE.WebGLRenderer({
-        antialias:true,
-        powerPreference:"high-performance"
-    });
+const MOBILE_RENDER_TIER=
+    typeof window.matchMedia==="function"&&
+    window.matchMedia("(pointer:coarse)").matches&&
+    Math.min(
+        window.screen?window.screen.width:0,
+        window.screen?window.screen.height:0
+    )<820;
+
+let renderer=null;
+
+try{
+
+    renderer=
+        new THREE.WebGLRenderer({
+            antialias:!MOBILE_RENDER_TIER,
+            powerPreference:"high-performance"
+        });
+
+}catch(rendererError){
+
+    /* low-memory / no-WebGL phones must never die into a
+       blank page: retry bare-bones, then say so on screen */
+    try{
+
+        renderer=
+            new THREE.WebGLRenderer({
+                antialias:false,
+                powerPreference:"default"
+            });
+
+    }catch(fallbackError){
+
+        const fatalBox=
+            document.createElement(
+                "div"
+            );
+
+        fatalBox.style.cssText=
+            "position:fixed;inset:0;display:flex;"+
+            "align-items:center;justify-content:center;"+
+            "background:#0b0f15;color:#f2f5f8;"+
+            "font:14px/1.5 Arial,sans-serif;"+
+            "text-align:center;padding:24px;z-index:9999";
+
+        fatalBox.textContent=
+            "Apex GP could not start WebGL on this device. "+
+            "Please use a browser with hardware acceleration enabled.";
+
+        document.body.appendChild(
+            fatalBox
+        );
+
+        throw fallbackError;
+
+    }
+
+}
+
+/* explicit sky-blue clear: the canvas can never sit in an
+   undefined (white) clear state, even before the first
+   scene render or after a context event */
+renderer.setClearColor(
+    0x8fb4d9,
+    1
+);
 
 renderer.setSize(
     window.innerWidth,
@@ -3517,12 +3620,12 @@ renderer.setSize(
 
 renderer.setPixelRatio(
     Math.min(
-        window.devicePixelRatio,
-        1.5
+        window.devicePixelRatio||1,
+        MOBILE_RENDER_TIER?1:1.5
     )
 );
 
-renderer.shadowMap.enabled=true;
+renderer.shadowMap.enabled=!MOBILE_RENDER_TIER;
 renderer.shadowMap.type=
     THREE.PCFSoftShadowMap;
 
@@ -3533,6 +3636,16 @@ renderer.toneMapping=
     THREE.ACESFilmicToneMapping;
 
 renderer.toneMappingExposure=1.15;
+
+/* a lost mobile GPU context restores instead of sticking
+   on a dead frame; three re-uploads on restore */
+renderer.domElement.addEventListener(
+    "webglcontextlost",
+    e=>{
+        e.preventDefault();
+    },
+    false
+);
 
 document.body.appendChild(
     renderer.domElement
@@ -22198,8 +22311,8 @@ window.addEventListener(
 
         renderer.setPixelRatio(
             Math.min(
-                window.devicePixelRatio,
-                1.5
+                window.devicePixelRatio||1,
+                MOBILE_RENDER_TIER?1:1.5
             )
         );
 
