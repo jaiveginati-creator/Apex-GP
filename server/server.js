@@ -118,6 +118,7 @@ function resetRaceFields(room) {
     }
     room.startsAt = null;
     room.finishOrder = [];
+    if (room.departed) room.departed.clear();
     for (const p of room.players.values()) {
         p.ready = false;
         p.lap = 0;
@@ -160,9 +161,16 @@ function roomStateMsg(room) {
     };
 }
 
+function allRacePlayers(room) {
+    return [
+        ...room.players.entries(),
+        ...(room.departed ? room.departed.entries() : []),
+    ];
+}
+
 function buildLeaderboard(room) {
     const entries = [];
-    for (const [id, p] of room.players) {
+    for (const [id, p] of allRacePlayers(room)) {
         entries.push({
             id,
             name: p.name,
@@ -256,13 +264,15 @@ function removePlayer(room, code, playerId, reason) {
         p.token = null;
     }
 
+    room.players.delete(playerId);
     if (keepRaceRecord) {
-        // Preserve the classification row; a mid-race leaver is a DNF.
+        // Preserve the result row separately while freeing the live room
+        // slot so another driver can join during the race.
         p.connected = false;
         p.ws = null;
         if (!p.finished) p.dnf = true;
-    } else {
-        room.players.delete(playerId);
+        if (!room.departed) room.departed = new Map();
+        room.departed.set(playerId, p);
     }
 
     broadcast(room, { t: "left", id: playerId, reason: reason || "left" });
@@ -272,7 +282,7 @@ function removePlayer(room, code, playerId, reason) {
         room.hostId = next ? next[0] : null;
     }
 
-    if (room.players.size === 0) {
+    if (room.players.size === 0 && !keepRaceRecord) {
         if (room.countdownTimer) clearTimeout(room.countdownTimer);
         rooms.delete(code);
         return;
@@ -310,7 +320,7 @@ function maybeFinishRace(room) {
 
 function resultsMsg(room) {
     const order = room.finishOrder.map((id) => {
-        const p = room.players.get(id);
+        const p = room.players.get(id) || (room.departed && room.departed.get(id));
         return {
             id,
             name: p ? p.name : "?",
@@ -319,7 +329,7 @@ function resultsMsg(room) {
     });
     const laps = {};
     const dnf = [];
-    for (const [id, p] of room.players) {
+    for (const [id, p] of allRacePlayers(room)) {
         laps[id] = p.lap;
         if (p.dnf || (!p.finished && (!p.connected || !p.ws || p.ws.readyState !== 1))) dnf.push(id);
     }
@@ -431,6 +441,7 @@ wss.on("connection", (ws, req) => {
             playerName = name;
             const room = {
                 players: new Map(),
+                departed: new Map(),
                 createdAt: Date.now(),
                 state: "lobby",
                 config: { track: "jeddah", laps: DEFAULT_LAPS },
