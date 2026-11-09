@@ -26989,10 +26989,12 @@ function setActiveTrackData(id){
     TRACK_HALF_WIDTH=isMonza
         ?MONZA_TRACK_HALF_WIDTH
         :DEFAULT_TRACK_HALF_WIDTH;
-    PIT_LANE_PATH_LATERAL=isMonza?11:DEFAULT_PIT_LANE_PATH_LATERAL;
-    PIT_BOX_LATERAL=isMonza?17.5:DEFAULT_PIT_BOX_LATERAL;
-    PIT_ENTRY_LATERAL=isMonza?7:DEFAULT_PIT_ENTRY_LATERAL;
-    PIT_EXIT_LATERAL=isMonza?7:DEFAULT_PIT_EXIT_LATERAL;
+    /* Monza's pit lane must sit outside the widened racing
+       surface. Keep the entry/exit tapers just beyond the edge. */
+    PIT_LANE_PATH_LATERAL=isMonza?29:DEFAULT_PIT_LANE_PATH_LATERAL;
+    PIT_BOX_LATERAL=isMonza?35.5:DEFAULT_PIT_BOX_LATERAL;
+    PIT_ENTRY_LATERAL=isMonza?23:DEFAULT_PIT_ENTRY_LATERAL;
+    PIT_EXIT_LATERAL=isMonza?23:DEFAULT_PIT_EXIT_LATERAL;
 
     buildTrackCurveData(
         trackPointsFor(activeTrackId)
