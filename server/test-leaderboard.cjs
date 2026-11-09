@@ -97,6 +97,10 @@ function sendPosition(ws, state, progress) {
         const b = { seq: 0, x: 20 };
 
         sendPosition(alpha, a, 100);
+        // The server rate-limits standings broadcasts to 10 Hz; send
+        // another current snapshot after that interval.
+        await sleep(130);
+        sendPosition(alpha, a, 100);
         const firstBoard = await waitFor(alpha, (m) =>
             m.t === "leaderboard" &&
             m.entries.some((e) => e.name === "Alpha" && e.progress >= 100)
