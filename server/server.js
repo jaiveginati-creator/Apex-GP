@@ -118,6 +118,7 @@ function resetRaceFields(room) {
     }
     room.startsAt = null;
     room.finishOrder = [];
+    if (room.departed) room.departed.clear();
     for (const p of room.players.values()) {
         p.ready = false;
         p.lap = 0;
@@ -136,7 +137,7 @@ function roomStateMsg(room) {
         players.push({
             id,
             name: p.name,
-            connected: p.ws.readyState === 1 && p.connected,
+            connected: !!(p.ws && p.ws.readyState === 1 && p.connected),
             ready: p.ready,
             lap: p.lap,
             finished: p.finished,
@@ -153,14 +154,23 @@ function roomStateMsg(room) {
         players,
         finishOrder: room.finishOrder.slice(),
         seq: room.seq || 0,
+        raceId: room.raceId || 0,
+        leaderboardSeq: room.leaderboardSeq || 0,
         ts: Date.now(),
         leaderboard: buildLeaderboard(room),
     };
 }
 
+function allRacePlayers(room) {
+    return [
+        ...room.players.entries(),
+        ...(room.departed ? room.departed.entries() : []),
+    ];
+}
+
 function buildLeaderboard(room) {
     const entries = [];
-    for (const [id, p] of room.players) {
+    for (const [id, p] of allRacePlayers(room)) {
         entries.push({
             id,
             name: p.name,
@@ -175,6 +185,7 @@ function buildLeaderboard(room) {
     // Deterministic authoritative ordering.
     entries.sort((a, b) => {
         if (a.finished !== b.finished) return a.finished ? -1 : 1;
+        if (a.dnf !== b.dnf) return a.dnf ? 1 : -1;
         if (a.finished && b.finished) {
             const at = Number.isFinite(a.finishTime) ? a.finishTime : Infinity;
             const bt = Number.isFinite(b.finishTime) ? b.finishTime : Infinity;
@@ -220,7 +231,7 @@ function sendState(room) {
 function lobbyList(room) {
     const out = [];
     for (const [id, p] of room.players) {
-        out.push({ id, name: p.name, connected: p.ws.readyState === 1 });
+        out.push({ id, name: p.name, connected: !!(p.ws && p.ws.readyState === 1 && p.connected) });
     }
     return out;
 }
@@ -229,12 +240,12 @@ function broadcast(room, msg, exceptId) {
     const text = JSON.stringify(msg);
     for (const [id, p] of room.players) {
         if (id === exceptId) continue;
-        if (p.ws.readyState === 1) p.ws.send(text);
+        if (p.ws && p.ws.readyState === 1 && p.connected) p.ws.send(text);
     }
 }
 
 function send(ws, msg) {
-    if (ws.readyState === 1) ws.send(JSON.stringify(msg));
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
 }
 
 function removePlayer(room, code, playerId, reason) {
@@ -244,27 +255,43 @@ function removePlayer(room, code, playerId, reason) {
         clearTimeout(p.graceTimer);
         p.graceTimer = null;
     }
-    if (p && p.token) sessions.delete(p.token);
+
     const wasHost = room.hostId === playerId;
+    const keepRaceRecord = room.state === "racing" || room.state === "finished";
+
+    if (p && p.token) {
+        sessions.delete(p.token);
+        p.token = null;
+    }
+
     room.players.delete(playerId);
+    if (keepRaceRecord) {
+        // Preserve the result row separately while freeing the live room
+        // slot so another driver can join during the race.
+        p.connected = false;
+        p.ws = null;
+        if (!p.finished) p.dnf = true;
+        if (!room.departed) room.departed = new Map();
+        room.departed.set(playerId, p);
+    }
+
     broadcast(room, { t: "left", id: playerId, reason: reason || "left" });
-    // Host migrates so the session stays manageable.
+
     if (wasHost) {
         const next = firstConnected(room);
         room.hostId = next ? next[0] : null;
     }
-    if (room.players.size === 0) {
+
+    if (room.players.size === 0 && !keepRaceRecord) {
         if (room.countdownTimer) clearTimeout(room.countdownTimer);
         rooms.delete(code);
         return;
     }
-    // A mid-race departure is a DNF, never a freeze.
-    // Everyone gets a fresh state so standings/HUD
-    // never go stale waiting for the next lap.
-    if (room.state === "racing" || room.state === "countdown") {
+
+    if (room.state === "racing" || room.state === "finished" || room.state === "countdown") {
         broadcast(room, roomStateMsg(room));
-        maybeFinishRace(room);
         sendLeaderboard(room, code, true);
+        maybeFinishRace(room);
     } else {
         broadcast(room, { t: "lobby", players: lobbyList(room) });
         broadcast(room, roomStateMsg(room));
@@ -274,7 +301,7 @@ function removePlayer(room, code, playerId, reason) {
 
 function firstConnected(room) {
     for (const [id, p] of room.players) {
-        if (p.ws.readyState === 1) return [id, p];
+        if (p.connected && p.ws && p.ws.readyState === 1) return [id, p];
     }
     return null;
 }
@@ -284,10 +311,7 @@ function firstConnected(room) {
 function maybeFinishRace(room) {
     if (room.state !== "racing" && room.state !== "countdown") return;
     for (const p of room.players.values()) {
-        if (!p.finished && p.ws.readyState === 1) return;
-    }
-    for (const p of room.players.values()) {
-        if (!p.finished) p.dnf = true;
+        if (!p.finished && !p.dnf) return;
     }
     room.state = "finished";
     broadcast(room, resultsMsg(room));
@@ -296,7 +320,7 @@ function maybeFinishRace(room) {
 
 function resultsMsg(room) {
     const order = room.finishOrder.map((id) => {
-        const p = room.players.get(id);
+        const p = room.players.get(id) || (room.departed && room.departed.get(id));
         return {
             id,
             name: p ? p.name : "?",
@@ -305,9 +329,9 @@ function resultsMsg(room) {
     });
     const laps = {};
     const dnf = [];
-    for (const [id, p] of room.players) {
+    for (const [id, p] of allRacePlayers(room)) {
         laps[id] = p.lap;
-        if (p.dnf || (!p.finished && p.ws.readyState !== 1)) dnf.push(id);
+        if (p.dnf || (!p.finished && (!p.connected || !p.ws || p.ws.readyState !== 1))) dnf.push(id);
     }
     return {
         t: "results",
@@ -317,6 +341,26 @@ function resultsMsg(room) {
         laps,
         dnf,
     };
+}
+
+function markDisconnected(room, code, playerId, ws) {
+    const p = room.players.get(playerId);
+    // Ignore an old socket closing after the player has rejoined.
+    if (!p || p.ws !== ws || !p.connected) return;
+
+    p.connected = false;
+    p.lastSeenAt = Date.now();
+    if (p.graceTimer) clearTimeout(p.graceTimer);
+    p.graceTimer = setTimeout(() => {
+        const current = room.players.get(playerId);
+        if (current !== p || p.connected || (p.ws && p.ws.readyState === 1)) return;
+        p.graceTimer = null;
+        removePlayer(room, code, playerId, "disconnect");
+    }, RECONNECT_GRACE_MS);
+
+    broadcast(room, { t: "lobby", players: lobbyList(room) });
+    broadcast(room, roomStateMsg(room));
+    sendLeaderboard(room, code, true);
 }
 
 function checkOrigin(req) {
@@ -397,6 +441,7 @@ wss.on("connection", (ws, req) => {
             playerName = name;
             const room = {
                 players: new Map(),
+                departed: new Map(),
                 createdAt: Date.now(),
                 state: "lobby",
                 config: { track: "jeddah", laps: DEFAULT_LAPS },
@@ -576,17 +621,19 @@ wss.on("connection", (ws, req) => {
             me.lastX = x;
             me.lastZ = z;
             me.lastPosTime = now;
-            sendLeaderboard(room, code, false);
-
             // Progress validation (client-reported, server-authoritative max).
             if (msg.progress != null && isNumber(msg.progress)) {
                 const pg = Number(msg.progress);
                 if (pg >= 0 && pg < 1e9) {
                     if (pg + 1e-6 >= (me.progress || 0)) {
                         // plausible max jump: 200 m/s equivalent
+                        const hasProgressSample = me.lastProgressAt > 0;
                         const dtSec = Math.max(0.001, (now - (me.lastProgressAt || now)) / 1000);
                         const jump = pg - (me.progress || 0);
-                        if (jump <= 200 * dtSec + 50) {
+                        // The first sample may begin some distance down the
+                        // grid; subsequent samples use a speed-based bound.
+                        const maxJump = hasProgressSample ? 200 * dtSec + 50 : 250;
+                        if (jump <= maxJump) {
                             me.progress = pg;
                             me.lastProgressAt = now;
                         }
@@ -605,12 +652,18 @@ wss.on("connection", (ws, req) => {
                     z,
                     yaw,
                     speed,
+                    progress: me.progress || 0,
+                    lap: me.lap || 0,
+                    finished: me.finished === true,
+                    finishTime: me.finishTime,
                     seq,
                     ts: now,
                     cts: isNumber(msg.ts) ? msg.ts : null,
                 },
                 playerId
             );
+            // Publish after applying this packet's accepted progress.
+            sendLeaderboard(room, code, false);
             return;
         }
 
@@ -757,7 +810,7 @@ wss.on("connection", (ws, req) => {
     ws.on("close", () => {
         if (code && playerId) {
             const room = rooms.get(code);
-            if (room) removePlayer(room, code, playerId, "disconnect");
+            if (room) markDisconnected(room, code, playerId, ws);
         }
     });
 
