@@ -4509,23 +4509,18 @@ const spaPoints=[
    Parabolica and the main straight.
    ========================================================= */
 const monzaPoints=[
- [0,0,900],[0,0,650],[0,0,350],[0,0,80],
- [8,0,-35],[48,0,-75],[52,0,-125],[12,0,-150],
- [-65,0,-145],[-180,0,-115],[-330,0,-60],
- [-465,0,20],[-535,0,95],[-560,0,180],
- [-530,0,245],[-460,0,265],[-390,0,245],
- [-330,0,195],[-285,0,135],[-260,0,70],
- [-245,0,5],[-215,0,-45],[-175,0,-55],
- [-140,0,-25],[-125,0,30],[-145,0,85],
- [-195,0,130],[-235,0,175],[-230,0,225],
- [-190,0,265],[-125,0,285],[-70,0,270],
- [-30,0,230],[5,0,170],[40,0,105],
- [90,0,40],[155,0,-5],[220,0,-35],
- [300,0,-50],[390,0,-45],[475,0,-15],
- [525,0,35],[535,0,95],[500,0,155],
- [430,0,205],[345,0,240],[250,0,260],
- [160,0,275],[80,0,300],[35,0,360],
- [18,0,470],[8,0,650]
+ [0,0,300],[300,0,300],[600,0,300],[800,0,300],
+ [850,0,280],[860,0,230],[830,0,190],[790,0,190],
+ [770,0,230],[810,0,280],[820,0,200],[780,0,80],
+ [700,0,-40],[580,0,-130],[500,0,-210],[490,0,-270],
+ [520,0,-300],[480,0,-320],[440,0,-280],[460,0,-230],
+ [510,0,-240],[540,0,-300],[510,0,-370],[450,0,-420],
+ [350,0,-460],[240,0,-470],[150,0,-450],[90,0,-390],
+ [30,0,-340],[-90,0,-310],[-240,0,-280],[-380,0,-220],
+ [-480,0,-150],[-530,0,-80],[-510,0,-25],[-460,0,-10],
+ [-440,0,-50],[-480,0,-90],[-530,0,-60],[-560,0,0],
+ [-650,0,30],[-750,0,90],[-830,0,180],[-850,0,260],
+ [-850,0,300]
 ];
 
 
@@ -25817,7 +25812,7 @@ function trackPointsFor(id){
     return id==="spa"
         ?spaPoints
         :id==="monza"
-            ?monzaPoints.map(p=>[p[0]*.913,p[1],p[2]*.913])
+            ?monzaPoints.map(p=>[p[0]*.891,p[1],p[2]*.891])
             :rawPoints;
 }
 
@@ -34319,67 +34314,464 @@ function loadSpaWorld(){
 
 
 let monzaWorldBuilt=false;
+
 function loadMonzaWorld(){
     if(monzaWorldBuilt)return;
-    console.log("[TRACK] building Monza world...");
+
+    console.log("[TRACK] building detailed Monza world...");
     while(monzaWorld.children.length)monzaWorld.remove(monzaWorld.children[0]);
     if(!footprintsByTrack.jeddah)saveFootprints("jeddah");
+
     setActiveTrackData("monza");
     sceneryFootprints.length=0;
     activeWorldGroup=monzaWorld;
-    const ground=new THREE.Mesh(new THREE.PlaneGeometry(5600,5600),
-        new THREE.MeshStandardMaterial({color:0x557b43,roughness:1}));
-    ground.rotation.x=-Math.PI/2;ground.position.y=-1.1;ground.receiveShadow=true;
-    monzaWorld.add(ground);
-    const road=createRibbon(TRACK_HALF_WIDTH,.01,asphaltMaterial,32);
-    road.receiveShadow=true;monzaWorld.add(road);
-    monzaWorld.add(createRibbon(TRACK_HALF_WIDTH+KERB_WIDTH+RUNOFF_WIDTH,-.015,runoffMaterial));
-    const red=new THREE.InstancedMesh(kerbGeometry,redKerbMaterial,MAX_KERB_INSTANCES);
-    const white=new THREE.InstancedMesh(kerbGeometry,whiteKerbMaterial,MAX_KERB_INSTANCES);
-    const obj=new THREE.Object3D();let rc=0,wc=0;
+
+    const trackBounds={minX:Infinity,maxX:-Infinity,minZ:Infinity,maxZ:-Infinity};
+    for(let i=0;i<TRACK_SAMPLES;i+=4){
+        const p=getTrackSample(i).p;
+        trackBounds.minX=Math.min(trackBounds.minX,p.x);
+        trackBounds.maxX=Math.max(trackBounds.maxX,p.x);
+        trackBounds.minZ=Math.min(trackBounds.minZ,p.z);
+        trackBounds.maxZ=Math.max(trackBounds.maxZ,p.z);
+    }
+
+    /* -----------------------------------------------------
+       ROYAL PARK TERRAIN — layered Italian parkland rather
+       than a featureless green plane. Keep the road shelf
+       below the asphalt so the racing surface never z-fights.
+       ----------------------------------------------------- */
+    const margin=570;
+    const groundW=trackBounds.maxX-trackBounds.minX+margin*2;
+    const groundD=trackBounds.maxZ-trackBounds.minZ+margin*2;
+    const centerX=(trackBounds.maxX+trackBounds.minX)/2;
+    const centerZ=(trackBounds.maxZ+trackBounds.minZ)/2;
+    const groundGeo=new THREE.PlaneGeometry(groundW,groundD,190,150);
+    groundGeo.rotateX(-Math.PI/2);
+    groundGeo.translate(centerX,-1.15,centerZ);
+    const gp=groundGeo.attributes.position;
+    const grassColors=[];
+    for(let i=0;i<gp.count;i++){
+        const x=gp.getX(i),z=gp.getZ(i);
+        const broad=Math.sin(x*.0041+z*.0027)*.5+
+                    Math.cos(z*.0035-x*.0019)*.5;
+        const patch=Math.sin(x*.021+z*.013)*.5+
+                    Math.cos((x-z)*.017)*.5;
+        const fine=Math.sin(x*.12+z*.071)*.5;
+        const shade=1+broad*.075+patch*.045+fine*.018;
+        gp.setY(i,-1.15+Math.sin(x*.002+z*.001)*.22);
+        grassColors.push(.30*shade,.43*shade,.22*shade);
+    }
+    groundGeo.attributes.position.needsUpdate=true;
+    groundGeo.setAttribute("color",new THREE.Float32BufferAttribute(grassColors,3));
+    groundGeo.computeVertexNormals();
+    const groundMesh=new THREE.Mesh(groundGeo,new THREE.MeshStandardMaterial({
+        color:0xffffff,vertexColors:true,roughness:1,metalness:0
+    }));
+    groundMesh.receiveShadow=true;
+    monzaWorld.add(groundMesh);
+
+    /* Subtle perimeter access roads and service clearings. */
+    const serviceMat=new THREE.MeshStandardMaterial({color:0x555a5c,roughness:.96});
+    const serviceLineMat=new THREE.MeshStandardMaterial({color:0xb7b8ad,roughness:.9});
+    const serviceRoad=(x,z,w,d,yaw)=>{
+        const road=new THREE.Mesh(new THREE.BoxGeometry(w,.12,d),serviceMat);
+        road.position.set(x,-.98,z);road.rotation.y=yaw;
+        road.receiveShadow=true;monzaWorld.add(road);
+        return road;
+    };
+    serviceRoad(centerX-250,trackBounds.minZ-210,420,12,.18);
+    serviceRoad(centerX+350,trackBounds.maxZ+180,360,10,-.12);
+
+    /* -----------------------------------------------------
+       MAIN CIRCUIT — same detailed asphalt treatment as
+       Spa/Jeddah, with kerbs, runoff, gravel and barriers.
+       ----------------------------------------------------- */
+    const monzaRoad=createRibbon(
+        TRACK_HALF_WIDTH,.01,asphaltMaterial,36,getAsphaltVertexColor
+    );
+    monzaRoad.receiveShadow=true;
+    monzaWorld.add(monzaRoad);
+    const runoff=createRibbon(
+        TRACK_HALF_WIDTH+KERB_WIDTH+RUNOFF_WIDTH,-.018,runoffMaterial,12
+    );
+    runoff.receiveShadow=true;
+    monzaWorld.add(runoff);
+
+    const redKerbs=new THREE.InstancedMesh(kerbGeometry,redKerbMaterial,MAX_KERB_INSTANCES);
+    const whiteKerbs=new THREE.InstancedMesh(kerbGeometry,whiteKerbMaterial,MAX_KERB_INSTANCES);
+    const kObj=new THREE.Object3D();
+    let redCount=0,whiteCount=0;
     for(let i=0;i<TRACK_SAMPLES;i+=KERB_SAMPLE_STEP){
         if(!isNearKerbCorner(i))continue;
         const d=getTrackSample(i);
         for(const side of [-1,1]){
-            obj.position.copy(d.p).addScaledVector(d.normal,side*(TRACK_HALF_WIDTH+KERB_WIDTH/2));
-            obj.position.y=d.p.y+.06;obj.rotation.set(0,getTrackTangentAngle(d),0);
-            pitchToGrade(obj,i);obj.updateMatrix();
-            if(Math.floor(i/KERB_SAMPLE_STEP)%2===0)red.setMatrixAt(rc++,obj.matrix);
-            else white.setMatrixAt(wc++,obj.matrix);
+            kObj.position.copy(d.p).addScaledVector(
+                d.normal,side*(TRACK_HALF_WIDTH+KERB_WIDTH/2)
+            );
+            kObj.position.y=d.p.y+.055;
+            kObj.rotation.set(0,getTrackTangentAngle(d),0);
+            pitchToGrade(kObj,i);kObj.updateMatrix();
+            const tint=new THREE.Color().setScalar(.92+getTrackNoise(i,side+71)*.08);
+            if(Math.floor(i/KERB_SAMPLE_STEP)%2===0&&redCount<MAX_KERB_INSTANCES){
+                redKerbs.setMatrixAt(redCount,kObj.matrix);redKerbs.setColorAt(redCount,tint);redCount++;
+            }else if(whiteCount<MAX_KERB_INSTANCES){
+                whiteKerbs.setMatrixAt(whiteCount,kObj.matrix);whiteKerbs.setColorAt(whiteCount,tint);whiteCount++;
+            }
         }
     }
-    red.count=rc;white.count=wc;red.instanceMatrix.needsUpdate=true;white.instanceMatrix.needsUpdate=true;
-    red.receiveShadow=true;white.receiveShadow=true;monzaWorld.add(red,white);
-    const trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.7,.9,9,7),
-        new THREE.MeshStandardMaterial({color:0x59452e}),220);
-    const crowns=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(5.5,1),
-        new THREE.MeshStandardMaterial({color:0x315d32,roughness:1}),220);
-    const dummy=new THREE.Object3D();let planted=0;
-    for(let x=-1050;x<=1050&&planted<220;x+=100){
-        for(let z=-1050;z<=1050&&planted<220;z+=125){
-            if(distanceToTrackXZ(x,z)<125)continue;
-            const jitter=(planted*37)%31-15;
-            dummy.position.set(x+jitter,4.5,z-jitter);dummy.scale.setScalar(.85+(planted%5)*.06);
-            dummy.updateMatrix();trunks.setMatrixAt(planted,dummy.matrix);
-            dummy.position.y=13;dummy.scale.multiplyScalar(1.05);dummy.updateMatrix();
-            crowns.setMatrixAt(planted,dummy.matrix);planted++;
+    redKerbs.count=redCount;whiteKerbs.count=whiteCount;
+    redKerbs.instanceMatrix.needsUpdate=true;whiteKerbs.instanceMatrix.needsUpdate=true;
+    if(redKerbs.instanceColor)redKerbs.instanceColor.needsUpdate=true;
+    if(whiteKerbs.instanceColor)whiteKerbs.instanceColor.needsUpdate=true;
+    redKerbs.receiveShadow=true;whiteKerbs.receiveShadow=true;
+    monzaWorld.add(redKerbs,whiteKerbs);
+
+    /* Heavy braking zones get real gravel traps, not just
+       a painted green verge. */
+    for(const corner of RACING_LINE_CORNER_PEAKS){
+        if(corner.severity>.008){
+            const trap=createGravelTrap(corner);
+            if(trap)monzaWorld.add(trap);
         }
     }
-    trunks.count=planted;crowns.count=planted;trunks.instanceMatrix.needsUpdate=true;crowns.instanceMatrix.needsUpdate=true;
-    monzaWorld.add(trunks,crowns);
-    const standMat=new THREE.MeshStandardMaterial({color:0x777b80,roughness:.9});
-    const roofMat=new THREE.MeshStandardMaterial({color:0x30343a,roughness:.8});
-    for(let n=0;n<3;n++){
-        const stand=new THREE.Mesh(new THREE.BoxGeometry(150,13,24),standMat);
-        stand.position.set(58,6.5,460-n*88);stand.castShadow=true;monzaWorld.add(stand);
-        const roof=new THREE.Mesh(new THREE.BoxGeometry(155,2,29),roofMat);
-        roof.position.set(58,14,460-n*88);monzaWorld.add(roof);
+
+    /* Concrete wall, steel rail and catch-fence system. */
+    const wallCountMax=Math.ceil(TRACK_SAMPLES/WALL_SAMPLE_STEP)*2;
+    const walls=new THREE.InstancedMesh(wallGeometry,wallMaterial,wallCountMax);
+    const railMat=new THREE.MeshStandardMaterial({
+        color:0xb9c2c8,roughness:.32,metalness:.82
+    });
+    const rails=new THREE.InstancedMesh(
+        new THREE.BoxGeometry(.55,.32,METERS_PER_SAMPLE*WALL_SAMPLE_STEP*1.04),
+        railMat,wallCountMax
+    );
+    const fenceMat=new THREE.MeshStandardMaterial({
+        color:0x8d999f,roughness:.55,metalness:.42,
+        transparent:true,opacity:.28,side:THREE.DoubleSide,depthWrite:false
+    });
+    const fences=new THREE.InstancedMesh(
+        new THREE.PlaneGeometry(METERS_PER_SAMPLE*WALL_SAMPLE_STEP*1.04,3.5),
+        fenceMat,wallCountMax
+    );
+    const wObj=new THREE.Object3D();
+    let wc=0,fc=0;
+    for(let i=0;i<TRACK_SAMPLES;i+=WALL_SAMPLE_STEP){
+        const d=getTrackSample(i);
+        for(const side of [-1,1]){
+            if(side===PIT_SIDE&&isInPitCorridor(i))continue;
+            wObj.position.copy(d.p).addScaledVector(d.normal,side*WALL_DISTANCE);
+            wObj.position.y=d.p.y+.65;
+            wObj.rotation.set(0,getTrackTangentAngle(d),0);
+            pitchToGrade(wObj,i);wObj.updateMatrix();
+            walls.setMatrixAt(wc,wObj.matrix);
+            const railObj=new THREE.Object3D();
+            railObj.position.copy(wObj.position);railObj.position.y+=.72;
+            railObj.rotation.copy(wObj.rotation);railObj.scale.set(1,1,1);
+            railObj.updateMatrix();rails.setMatrixAt(wc,railObj.matrix);
+            const fenceObj=new THREE.Object3D();
+            fenceObj.position.copy(wObj.position);fenceObj.position.y+=2.9;
+            fenceObj.rotation.set(0,getTrackTangentAngle(d)+Math.PI/2,0);
+            fenceObj.scale.set(1,1,1);fenceObj.updateMatrix();
+            fences.setMatrixAt(wc,fenceObj.matrix);
+            wc++;
+        }
     }
-    const pit=new THREE.Mesh(new THREE.BoxGeometry(155,15,20),new THREE.MeshStandardMaterial({color:0xc8c8c2}));
-    pit.position.set(-62,7.5,470);pit.castShadow=true;monzaWorld.add(pit);
+    walls.count=wc;rails.count=wc;fences.count=wc;
+    walls.instanceMatrix.needsUpdate=true;rails.instanceMatrix.needsUpdate=true;
+    fences.instanceMatrix.needsUpdate=true;
+    walls.receiveShadow=true;rails.receiveShadow=true;
+    monzaWorld.add(walls,rails,fences);
+
+    /* -----------------------------------------------------
+       PIT LANE — actual shared pit-path geometry and boxes.
+       ----------------------------------------------------- */
+    monzaWorld.add(buildPitStrip(
+        row=>row.lateral-PIT_INNER_HALF,
+        row=>row.lateral+PIT_OUTER_HALF,.025,pitAsphaltMaterial
+    ));
+    monzaWorld.add(buildPitStrip(
+        row=>row.lateral-PIT_INNER_HALF,
+        row=>row.lateral-PIT_INNER_HALF+.32,.05,pitLineMaterial
+    ));
+    monzaWorld.add(buildPitStrip(
+        row=>row.lateral+PIT_OUTER_HALF-.32,
+        row=>row.lateral+PIT_OUTER_HALF,.05,pitLineMaterial
+    ));
+    monzaWorld.add(buildPitStrip(
+        row=>row.lateral+4.6,row=>row.lateral+4.9,.05,pitDashMaterial,
+        row=>Math.floor(row.s/5)%2===0
+    ));
+    monzaWorld.add(createPitCrossLine(PIT_LANE_START,pitYellowMaterial,.8));
+    monzaWorld.add(createPitCrossLine(PIT_LIMIT_END,pitYellowMaterial,.8));
+
+    /* Reusable local placement frame: along follows the
+       racing direction; lateral points away from the track. */
+    const frame=(sample,along,lateral,y=0)=>{
+        const yaw=getTrackTangentAngle(sample);
+        return sample.p.clone()
+            .addScaledVector(sample.normal,lateral)
+            .add(new THREE.Vector3(Math.sin(yaw)*along,y,Math.cos(yaw)*along));
+    };
+    const box=(world,w,h,d,x,y,z,yaw,mat,cast=true)=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+        m.position.set(x,y,z);m.rotation.y=yaw;
+        m.castShadow=cast;m.receiveShadow=true;world.add(m);return m;
+    };
+    const concrete=new THREE.MeshStandardMaterial({color:0xb9bec3,roughness:.82});
+    const concreteDark=new THREE.MeshStandardMaterial({color:0x6d7479,roughness:.88});
+    const roofMat=new THREE.MeshStandardMaterial({color:0x343b42,roughness:.68,metalness:.22});
+    const glass=new THREE.MeshStandardMaterial({
+        color:0x315567,metalness:.58,roughness:.22,envMapIntensity:1.25
+    });
+    const whitePaint=new THREE.MeshStandardMaterial({color:0xe5e7e5,roughness:.72});
+    const redPaint=new THREE.MeshStandardMaterial({color:0xb72d2b,roughness:.7});
+
+    /* -----------------------------------------------------
+       PIT BUILDING + PADDOCK. A long, layered glass-fronted
+       pit complex with garage bays, upper hospitality deck,
+       roof overhangs and a timing tower.
+       ----------------------------------------------------- */
+    const pitSample=getTrackSample(20);
+    const pitYaw=getTrackTangentAngle(pitSample);
+    const pitCenter=frame(pitSample,0,92,0);
+    box(monzaWorld,22,11,166,pitCenter.x,5.5,pitCenter.z,pitYaw,concrete);
+    const pitGlass=frame(pitSample,0,80,5.8);
+    box(monzaWorld,.5,3.6,158,pitGlass.x,pitGlass.y,pitGlass.z,pitYaw,glass,false);
+    const pitUpper=frame(pitSample,0,92,12.2);
+    box(monzaWorld,19,3,158,pitUpper.x,pitUpper.y,pitUpper.z,pitYaw,whitePaint);
+    const pitRoof=frame(pitSample,0,92,14.2);
+    box(monzaWorld,27,1.2,174,pitRoof.x,pitRoof.y,pitRoof.z,pitYaw,roofMat);
+    const balcony=frame(pitSample,0,76,10.2);
+    box(monzaWorld,3,.55,164,balcony.x,balcony.y,balcony.z,pitYaw,roofMat);
+    for(let i=0;i<10;i++){
+        const along=-72+i*16;
+        const bay=frame(pitSample,along,79,2.2);
+        box(monzaWorld,.35,4.2,12,bay.x,bay.y,bay.z,pitYaw,concreteDark,false);
+        const door=frame(pitSample,along,78.9,2.5);
+        box(monzaWorld,.22,3.3,10,door.x,door.y,door.z,pitYaw,
+            i%2===0?glass:concreteDark,false);
+    }
+    /* Team hospitality blocks behind the pit building. */
+    for(let i=0;i<7;i++){
+        const along=-66+i*22;
+        const p=frame(pitSample,along,130,0);
+        box(monzaWorld,24,8,18,p.x,4,p.z,pitYaw,
+            [whitePaint,concrete,glass,redPaint][i%4]);
+        const roof=frame(pitSample,along,130,8.3);
+        box(monzaWorld,27,.8,21,roof.x,roof.y,roof.z,pitYaw,roofMat);
+        const window=frame(pitSample,along,120,4.7);
+        box(monzaWorld,.3,2.8,16,window.x,window.y,window.z,pitYaw,glass,false);
+    }
+    /* Race control / timing tower. */
+    const tower=frame(pitSample,78,116,0);
+    box(monzaWorld,22,26,18,tower.x,13,tower.z,pitYaw,concreteDark);
+    const towerGlass=frame(pitSample,78,106,18);
+    box(monzaWorld,.5,5,17,towerGlass.x,towerGlass.y,towerGlass.z,pitYaw,glass,false);
+    const towerRoof=frame(pitSample,78,116,26.5);
+    box(monzaWorld,25,1,21,towerRoof.x,towerRoof.y,towerRoof.z,pitYaw,roofMat);
+
+    /* Garage-front service modules and individual pit-box marks. */
+    for(let i=0;i<pitBoxes.length;i++){
+        const b=pitBoxes[i],d=getTrackSample(b.index);
+        const gpos=b.pos.clone().addScaledVector(d.normal,15);
+        const garage=box(monzaWorld,13,6,11,gpos.x,gpos.y+3,gpos.z,
+            getTrackTangentAngle(d),i%2?concrete:whitePaint);
+        const doorPos=b.pos.clone().addScaledVector(d.normal,8.7);
+        box(monzaWorld,.22,4.6,9,doorPos.x,doorPos.y+2.3,doorPos.z,
+            getTrackTangentAngle(d),glass,false);
+        registerSceneryFootprint(gpos.x,gpos.z,14,12);
+    }
+
+    /* -----------------------------------------------------
+       GRANDSTANDS — tiered concrete terraces, roof canopies,
+       support frames and crowd silhouettes at key viewpoints.
+       ----------------------------------------------------- */
+    const crowdGeo=new THREE.BoxGeometry(.52,1.05,.42);
+    const crowdMat=new THREE.MeshStandardMaterial({roughness:.95});
+    const crowd=new THREE.InstancedMesh(crowdGeo,crowdMat,2300);
+    const crowdDummy=new THREE.Object3D();
+    let crowdCount=0;
+    const standSpecs=[
+        {index:18,lat:-112,width:84,depth:36},
+        {index:78,lat:-112,width:72,depth:32},
+        {index:300,lat:105,width:66,depth:30},
+        {index:720,lat:-100,width:68,depth:30},
+        {index:1110,lat:104,width:72,depth:32},
+        {index:1450,lat:100,width:64,depth:28}
+    ];
+    for(let si=0;si<standSpecs.length;si++){
+        const spec=standSpecs[si],d=getTrackSample(spec.index);
+        const yaw=getTrackTangentAngle(d);
+        const center=frame(d,0,spec.lat,0);
+        const baseY=spaTerrainHeightAt(center.x,center.z);
+        const sign=spec.lat>=0?1:-1;
+        box(monzaWorld,spec.depth+8,4,spec.width+8,
+            center.x,baseY+1.2,center.z,yaw,concreteDark);
+        for(let tier=0;tier<5;tier++){
+            const lat=spec.lat+sign*(tier*4.1);
+            const pos=frame(d,0,lat,baseY+3+tier*1.65);
+            box(monzaWorld,3.5,1.25,spec.width,
+                pos.x,pos.y,pos.z,yaw,tier%2?concrete:concreteDark);
+            for(let n=0;n<Math.floor(spec.width/2.2);n++){
+                if(crowdCount>=2300)break;
+                const along=-spec.width/2+2+n*2.2;
+                const person=frame(d,along,lat+sign*1.0,baseY+4+tier*1.65);
+                crowdDummy.position.set(person.x,person.y,person.z);
+                crowdDummy.rotation.set(0,yaw,0);
+                crowdDummy.scale.set(1,.75+(getTrackNoise(si*200+n,tier+41)*.55),1);
+                crowdDummy.updateMatrix();
+                crowd.setMatrixAt(crowdCount,crowdDummy.matrix);
+                crowd.setColorAt(crowdCount,new THREE.Color().setHSL(
+                    getTrackNoise(si*200+n,tier+44),.34,.36+getTrackNoise(n,si+8)*.28
+                ));
+                crowdCount++;
+            }
+        }
+        const roof=frame(d,0,spec.lat+sign*23,baseY+13);
+        box(monzaWorld,40,1.2,spec.width+14,
+            roof.x,roof.y,roof.z,yaw,roofMat);
+        for(const support of [-spec.width/2+4,spec.width/2-4]){
+            const sp=frame(d,support,spec.lat+sign*23,baseY+6.5);
+            box(monzaWorld,1,13,1,sp.x,sp.y,sp.z,yaw,concreteDark);
+        }
+        registerSceneryFootprint(center.x,center.z,spec.width,spec.depth);
+    }
+    crowd.count=crowdCount;crowd.instanceMatrix.needsUpdate=true;
+    if(crowd.instanceColor)crowd.instanceColor.needsUpdate=true;
+    monzaWorld.add(crowd);
+
+    /* -----------------------------------------------------
+       MONZA PARK — dense mature trees, understory and
+       clearings. Deterministic instancing keeps performance
+       stable while avoiding trees close to the racing line.
+       ----------------------------------------------------- */
+    const trunkGeo=new THREE.CylinderGeometry(.45,.8,10,8);
+    const crownGeo=new THREE.IcosahedronGeometry(6.5,2);
+    const trunkMat=new THREE.MeshStandardMaterial({color:0x55402d,roughness:1});
+    const crownMat=new THREE.MeshStandardMaterial({color:0x315a32,roughness:1});
+    const trunks=new THREE.InstancedMesh(trunkGeo,trunkMat,720);
+    const crowns=new THREE.InstancedMesh(crownGeo,crownMat,720);
+    const underGeo=new THREE.IcosahedronGeometry(2.8,1);
+    const underMat=new THREE.MeshStandardMaterial({color:0x496d38,roughness:1});
+    const undergrowth=new THREE.InstancedMesh(underGeo,underMat,520);
+    const treeObj=new THREE.Object3D();
+    let treeCount=0,underCount=0;
+    for(let x=trackBounds.minX-margin+55;x<trackBounds.maxX+margin-55&&treeCount<720;x+=78){
+        for(let z=trackBounds.minZ-margin+55;z<trackBounds.maxZ+margin-55&&treeCount<720;z+=83){
+            const seed=Math.abs(Math.sin(x*12.9898+z*78.233)*43758.5453);
+            const jx=(seed-Math.floor(seed)-.5)*42;
+            const jz=(Math.abs(Math.sin(seed*91.7)*10000)%1-.5)*42;
+            const tx=x+jx,tz=z+jz;
+            if(distanceToTrackXZ(tx,tz)<105)continue;
+            if(Math.abs(tx-centerX)<125&&Math.abs(tz-centerZ)<105)continue;
+            const h=spaTerrainHeightAt(tx,tz);
+            const scale=.72+(seed%1)*.78;
+            treeObj.position.set(tx,h+5*scale,tz);
+            treeObj.rotation.set(0,seed*6.28,0);
+            treeObj.scale.set(scale,scale,scale);
+            treeObj.updateMatrix();trunks.setMatrixAt(treeCount,treeObj.matrix);
+            treeObj.position.y=h+11*scale;
+            treeObj.scale.set(1.2*scale,1.35*scale,1.2*scale);
+            treeObj.updateMatrix();crowns.setMatrixAt(treeCount,treeObj.matrix);
+            if(trunks.instanceColor)trunks.setColorAt(treeCount,new THREE.Color().setHSL(.075,.22,.22+seed*.08));
+            if(crowns.instanceColor)crowns.setColorAt(treeCount,new THREE.Color().setHSL(.27,.34,.22+seed*.12));
+            treeCount++;
+            if(treeCount%2===0&&underCount<520){
+                treeObj.position.set(tx+12,h+1.5,tz-8);
+                treeObj.scale.setScalar(.8+(seed%1)*.6);
+                treeObj.updateMatrix();undergrowth.setMatrixAt(underCount++,treeObj.matrix);
+            }
+        }
+    }
+    trunks.count=treeCount;crowns.count=treeCount;undergrowth.count=underCount;
+    trunks.instanceMatrix.needsUpdate=true;crowns.instanceMatrix.needsUpdate=true;
+    undergrowth.instanceMatrix.needsUpdate=true;
+    if(trunks.instanceColor)trunks.instanceColor.needsUpdate=true;
+    if(crowns.instanceColor)crowns.instanceColor.needsUpdate=true;
+    trunks.castShadow=true;crowns.castShadow=true;
+    monzaWorld.add(trunks,crowns,undergrowth);
+
+    /* Smaller perimeter detail: marshal shelters, light
+       masts, access gates, tyre stacks and direction boards. */
+    const marshalMat=new THREE.MeshStandardMaterial({color:0xd9d8cf,roughness:.8});
+    const orangeMat=new THREE.MeshStandardMaterial({color:0xe56c25,roughness:.8});
+    const mastMat=new THREE.MeshStandardMaterial({color:0x42484e,metalness:.5,roughness:.65});
+    for(const idx of [90,250,430,610,790,980,1160,1360,1510]){
+        const d=getTrackSample(idx);
+        const side=idx%2?1:-1;
+        const pos=frame(d,0,side*66,0);
+        const y=spaTerrainHeightAt(pos.x,pos.z);
+        box(monzaWorld,4,2.8,3,pos.x,y+1.4,pos.z,getTrackTangentAngle(d),marshalMat);
+        box(monzaWorld,4.5,.3,3.5,pos.x,y+2.95,pos.z,getTrackTangentAngle(d),orangeMat);
+        const pole=frame(d,0,side*88,0);
+        const py=spaTerrainHeightAt(pole.x,pole.z);
+        box(monzaWorld,.55,15,.55,pole.x,py+7.5,pole.z,getTrackTangentAngle(d),mastMat);
+        box(monzaWorld,3.2,.55,1.1,pole.x,py+15.2,pole.z,getTrackTangentAngle(d),roofMat);
+        registerSceneryFootprint(pos.x,pos.z,7,6);
+    }
+
+    /* Trackside sponsor boards and braking-distance boards. */
+    const boardCanvas=(label,bg="#f0f0e9",fg="#17212a")=>{
+        const c=document.createElement("canvas");c.width=256;c.height=96;
+        const ctx=c.getContext("2d");ctx.fillStyle=bg;ctx.fillRect(0,0,256,96);
+        ctx.fillStyle=fg;ctx.font="bold 38px Arial";ctx.textAlign="center";
+        ctx.textBaseline="middle";ctx.fillText(label,128,49);
+        const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;return tex;
+    };
+    const boardMat=new THREE.MeshStandardMaterial({map:boardCanvas("APEX GP","#f0f0e9","#20252b"),roughness:.65});
+    for(const idx of [35,260,470,700,920,1180,1450]){
+        const d=getTrackSample(idx);
+        const p=frame(d,0,-43,2.2);
+        const sign=new THREE.Mesh(new THREE.BoxGeometry(9,2.5,.35),boardMat);
+        sign.position.copy(p);sign.rotation.y=getTrackTangentAngle(d)+Math.PI;
+        sign.castShadow=true;monzaWorld.add(sign);
+    }
+    const brakeMat=new THREE.MeshStandardMaterial({map:boardCanvas("100"),roughness:.6});
+    for(const idx of [175,420,650,1010,1390]){
+        const d=getTrackSample(idx);
+        for(const distance of [100,50]){
+            const before=wrapTrackIndex(idx-Math.round(distance/METERS_PER_SAMPLE));
+            const bd=getTrackSample(before);
+            const p=frame(bd,0,-39,1.5);
+            const sign=new THREE.Mesh(new THREE.BoxGeometry(2.8,1.7,.18),brakeMat);
+            sign.position.copy(p);sign.rotation.y=getTrackTangentAngle(bd)+Math.PI;
+            monzaWorld.add(sign);
+        }
+    }
+
+    /* Start/finish gantry, lights and checkered stripe. */
+    const start=getTrackSample(0),startYaw=getTrackTangentAngle(start);
+    const gantryMat=new THREE.MeshStandardMaterial({color:0x252b31,metalness:.55,roughness:.5});
+    const gantryPos=frame(start,0,0,10);
+    box(monzaWorld,1.4,1.4,TRACK_HALF_WIDTH*2+8,
+        gantryPos.x,gantryPos.y,gantryPos.z,startYaw,gantryMat);
+    for(const side of [-1,1]){
+        const leg=frame(start,0,side*(TRACK_HALF_WIDTH+3),5);
+        box(monzaWorld,1,10,1,leg.x,leg.y,leg.z,startYaw,gantryMat);
+    }
+
+    /* Soft high clouds above the park, matching the sky
+       treatment used by Spa. */
+    const cloudTextures=[makeSpaCloudTexture(31),makeSpaCloudTexture(83),makeSpaCloudTexture(149)];
+    for(let i=0;i<12;i++){
+        const a=i/12*Math.PI*2+getTrackNoise(i,321)*.25;
+        const r=1050+getTrackNoise(i,322)*650;
+        const sprite=new THREE.Sprite(new THREE.SpriteMaterial({
+            map:cloudTextures[i%3],transparent:true,
+            opacity:.48+getTrackNoise(i,323)*.3,depthWrite:false
+        }));
+        const w=420+getTrackNoise(i,324)*430;
+        sprite.position.set(centerX+Math.cos(a)*r,280+getTrackNoise(i,325)*170,centerZ+Math.sin(a)*r);
+        sprite.scale.set(w,w*.42,1);monzaWorld.add(sprite);
+    }
+
     footprintsByTrack.monza=sceneryFootprints.slice();
-    activeWorldGroup=jeddahWorld;setActiveTrackData("jeddah");restoreFootprints("jeddah");
-    monzaWorldBuilt=true;monzaWorld.visible=false;
+    activeWorldGroup=jeddahWorld;
+    setActiveTrackData("jeddah");
+    restoreFootprints("jeddah");
+    monzaWorldBuilt=true;
+    monzaWorld.visible=false;
+    console.log("[TRACK] Monza world ready: terrain, parkland, grandstands, paddock and trackside detail");
 }
 
 function setActiveTrack(id){
