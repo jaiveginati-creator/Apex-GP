@@ -37,13 +37,31 @@ function send(ws, obj) {
     ws.send(JSON.stringify(obj));
 }
 
+function waitForMessage(ws, predicate, timeoutMs = 3000) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            ws.removeListener("message", onMessage);
+            reject(new Error("timeout waiting for matching message"));
+        }, timeoutMs);
+        function onMessage(data) {
+            let message;
+            try { message = JSON.parse(String(data)); } catch (e) { return; }
+            if (!predicate(message)) return;
+            clearTimeout(timer);
+            ws.removeListener("message", onMessage);
+            resolve(message);
+        }
+        ws.on("message", onMessage);
+    });
+}
+
 (async () => {
     const srv = spawn(
         process.execPath,
         ["server.js"],
         {
             cwd: __dirname,
-            env: { ...process.env, PORT: String(PORT), HOST: "127.0.0.1" },
+            env: { ...process.env, PORT: String(PORT), HOST: "127.0.0.1", RECONNECT_GRACE_MS: "150" },
             stdio: ["ignore", "pipe", "pipe"],
         }
     );
@@ -120,10 +138,16 @@ function send(ws, obj) {
         full.close();
         console.log("ok 8-player cap");
 
-        // 7. leave notifies + frees slot
-        extras[0].close(); // abrupt disconnect
-        const leftMsg = await nextMsg(a);
-        assert.equal(leftMsg.t, "left");
+        // 7. abrupt disconnect is first marked away, then removed
+        // after the reconnect grace period; the slot is freed afterwards.
+        const awayPromise = waitForMessage(a, (m) =>
+            m.t === "lobby" &&
+            m.players.some((p) => p.name === "P0" && p.connected === false)
+        );
+        const leftPromise = waitForMessage(a, (m) => m.t === "left" && m.reason === "disconnect");
+        extras[0].close();
+        await awayPromise;
+        await leftPromise;
         const rejoin = await connect();
         send(rejoin, { t: "join", code, name: "Back" });
         assert.equal((await nextMsg(rejoin)).t, "joined");
