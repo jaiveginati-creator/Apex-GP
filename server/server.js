@@ -177,6 +177,7 @@ function buildLeaderboard(room) {
     // Deterministic authoritative ordering.
     entries.sort((a, b) => {
         if (a.finished !== b.finished) return a.finished ? -1 : 1;
+        if (a.dnf !== b.dnf) return a.dnf ? 1 : -1;
         if (a.finished && b.finished) {
             const at = Number.isFinite(a.finishTime) ? a.finishTime : Infinity;
             const bt = Number.isFinite(b.finishTime) ? b.finishTime : Infinity;
@@ -615,9 +616,13 @@ wss.on("connection", (ws, req) => {
                 if (pg >= 0 && pg < 1e9) {
                     if (pg + 1e-6 >= (me.progress || 0)) {
                         // plausible max jump: 200 m/s equivalent
+                        const hasProgressSample = me.lastProgressAt > 0;
                         const dtSec = Math.max(0.001, (now - (me.lastProgressAt || now)) / 1000);
                         const jump = pg - (me.progress || 0);
-                        if (jump <= 200 * dtSec + 50) {
+                        // The first sample may begin some distance down the
+                        // grid; subsequent samples use a speed-based bound.
+                        const maxJump = hasProgressSample ? 200 * dtSec + 50 : 250;
+                        if (jump <= maxJump) {
                             me.progress = pg;
                             me.lastProgressAt = now;
                         }
