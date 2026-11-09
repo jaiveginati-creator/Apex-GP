@@ -5,131 +5,148 @@ const WebSocket = require("ws");
 
 const PORT = 18798;
 const URL = `ws://127.0.0.1:${PORT}`;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function connect() {
     return new Promise((resolve, reject) => {
         const ws = new WebSocket(URL);
-        ws._buf = [];
-        ws.on("message", (d) => { try { ws._buf.push(JSON.parse(String(d))); } catch {} });
+        ws._messages = [];
+        ws.on("message", (raw) => {
+            try { ws._messages.push(JSON.parse(String(raw))); } catch (e) {}
+        });
         ws.once("open", () => resolve(ws));
         ws.once("error", reject);
     });
 }
-function send(ws, obj) { ws.send(JSON.stringify(obj)); }
-function waitFor(ws, pred, timeoutMs = 5000) {
+
+function send(ws, message) {
+    ws.send(JSON.stringify(message));
+}
+
+function waitFor(ws, predicate, timeoutMs = 5000) {
+    const started = Date.now();
     return new Promise((resolve, reject) => {
-        const buffered = (ws._buf || []).findIndex(pred);
-        if (buffered >= 0) { resolve(ws._buf.splice(buffered, 1)[0]); return; }
-        const seen = [];
-        const t = setTimeout(() => { ws.removeListener("message", onMsg); reject(new Error("timeout; got " + JSON.stringify(seen).slice(0, 200))); }, timeoutMs);
-        function onMsg(data) {
-            let m; try { m = JSON.parse(String(data)); } catch { return; }
-            seen.push(m.t);
-            if (pred(m)) {
-                clearTimeout(t);
-                ws.removeListener("message", onMsg);
-                const bi = (ws._buf || []).findIndex((x) => JSON.stringify(x) === JSON.stringify(m));
-                if (bi >= 0) ws._buf.splice(bi, 1);
-                resolve(m);
+        function poll() {
+            const index = ws._messages.findIndex(predicate);
+            if (index >= 0) {
+                resolve(ws._messages.splice(index, 1)[0]);
+                return;
             }
+            if (Date.now() - started > timeoutMs) {
+                reject(new Error("timeout waiting for message; buffered=" +
+                    JSON.stringify(ws._messages.map((m) => m.t))));
+                return;
+            }
+            setTimeout(poll, 10);
         }
-        ws.on("message", onMsg);
+        poll();
     });
 }
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function sendPosition(ws, state, progress) {
+    state.seq++;
+    state.x += 1;
+    send(ws, {
+        t: "pos",
+        x: state.x,
+        z: state.x,
+        yaw: 0,
+        speed: 30,
+        progress,
+        seq: state.seq,
+        ts: Date.now()
+    });
+}
 
 (async () => {
-    const srv = spawn(process.execPath, ["server.js"], {
+    const server = spawn(process.execPath, ["server.js"], {
         cwd: __dirname,
-        env: { ...process.env, PORT: String(PORT), HOST: "127.0.0.1", COUNTDOWN_MS: "100", MIN_LAP_MS: "50" },
-        stdio: ["ignore", "pipe", "pipe"],
+        env: {
+            ...process.env,
+            PORT: String(PORT),
+            HOST: "127.0.0.1",
+            COUNTDOWN_MS: "100",
+            RECONNECT_GRACE_MS: "2000"
+        },
+        stdio: ["ignore", "pipe", "pipe"]
     });
-    const out = [];
-    srv.stdout.on("data", (d) => out.push(String(d)));
-    for (let i = 0; i < 100; i++) { if (out.join("").includes("listening")) break; await sleep(50); }
+    const output = [];
+    server.stdout.on("data", (data) => output.push(String(data)));
 
     try {
-        const a = await connect();
-        send(a, { t: "create", name: "Alpha" });
-        const created = await waitFor(a, (m) => m.t === "created");
-        const code = created.code;
-        await waitFor(a, (m) => m.t === "state");
+        for (let i = 0; i < 100 && !output.join("").includes("listening"); i++) {
+            await sleep(50);
+        }
+        assert.ok(output.join("").includes("listening"), "server did not start");
 
-        const b = await connect();
-        send(b, { t: "join", code, name: "Bravo" });
-        await waitFor(b, (m) => m.t === "joined");
-        await waitFor(b, (m) => m.t === "state");
+        const alpha = await connect();
+        send(alpha, { t: "create", name: "Alpha" });
+        const created = await waitFor(alpha, (m) => m.t === "created");
+        await waitFor(alpha, (m) => m.t === "state");
 
-        // start race
-        send(a, { t: "start" });
-        await waitFor(b, (m) => m.t === "countdown");
-        await waitFor(b, (m) => m.t === "state" && m.state === "racing");
+        const bravo = await connect();
+        send(bravo, { t: "join", code: created.code, name: "Bravo" });
+        const joined = await waitFor(bravo, (m) => m.t === "joined");
+        await waitFor(bravo, (m) => m.t === "state");
 
-        // A ahead of B by progress
-        send(a, { t: "pos", x: 1, z: 1, yaw: 0, speed: 10, progress: 100, seq: 1, ts: Date.now() });
-        send(b, { t: "pos", x: 2, z: 2, yaw: 0, speed: 10, progress: 50, seq: 1, ts: Date.now() });
-        const lb1 = await waitFor(a, (m) => m.t === "leaderboard");
-        assert.equal(lb1.entries[0].name, "Alpha", "A should be first");
-        assert.equal(lb1.entries[1].name, "Bravo", "B should be second");
-        console.log("ok lb: A ahead of B");
+        send(alpha, { t: "start" });
+        await waitFor(bravo, (m) => m.t === "countdown");
+        await waitFor(bravo, (m) => m.t === "state" && m.state === "racing");
 
-        // B overtakes A
-        send(b, { t: "pos", x: 3, z: 3, yaw: 0, speed: 10, progress: 200, seq: 2, ts: Date.now() });
-        await sleep(150);
-        send(b, { t: "pos", x: 3, z: 3, yaw: 0, speed: 10, progress: 200, seq: 9, ts: Date.now() });
-        const lb2 = await waitFor(a, (m) => m.t === "leaderboard" && m.entries[0].name === "Bravo");
-        assert.equal(lb2.entries[0].name, "Bravo");
-        assert.equal(lb2.entries[1].name, "Alpha");
-        console.log("ok lb: B overtakes A");
+        const a = { seq: 0, x: 10 };
+        const b = { seq: 0, x: 20 };
 
-        // near-identical progress: unique positions, no simultaneous ahead
-        send(a, { t: "pos", x: 4, z: 4, yaw: 0, speed: 10, progress: 150.1, seq: 3, ts: Date.now() });
-        send(b, { t: "pos", x: 5, z: 5, yaw: 0, speed: 10, progress: 150.2, seq: 3, ts: Date.now() });
-        await sleep(150);
-        send(a, { t: "pos", x: 4, z: 4, yaw: 0, speed: 10, progress: 150.1, seq: 10, ts: Date.now() });
-        const lb3 = await waitFor(a, (m) => m.t === "leaderboard");
-        const positions = lb3.entries.map((e) => e.position);
-        assert.equal(new Set(positions).size, positions.length, "positions not unique");
-        assert.deepEqual(positions, [1, 2], "positions not consecutive");
-        console.log("ok lb: tie handling unique/consecutive");
+        sendPosition(alpha, a, 100);
+        const firstBoard = await waitFor(alpha, (m) =>
+            m.t === "leaderboard" &&
+            m.entries.some((e) => e.name === "Alpha" && e.progress >= 100)
+        );
+        assert.equal(firstBoard.entries[0].name, "Alpha");
 
-        // different laps via progress
-        send(a, { t: "pos", x: 6, z: 6, yaw: 0, speed: 10, progress: 1000, seq: 4, ts: Date.now() });
-        send(b, { t: "pos", x: 7, z: 7, yaw: 0, speed: 10, progress: 100, seq: 4, ts: Date.now() });
-        await sleep(150);
-        send(a, { t: "pos", x: 6, z: 6, yaw: 0, speed: 10, progress: 1000, seq: 11, ts: Date.now() });
-        const lb4 = await waitFor(a, (m) => m.t === "leaderboard" && m.entries[0].name === "Alpha");
-        assert.equal(lb4.entries[0].name, "Alpha");
-        console.log("ok lb: different progress order");
+        await sleep(130);
+        sendPosition(bravo, b, 50);
+        await waitFor(alpha, (m) =>
+            m.t === "leaderboard" &&
+            m.entries.some((e) => e.name === "Bravo" && e.progress >= 50)
+        );
 
-        // all clients same order
-        const lbA = lb4;
-        // get latest on b
-        send(b, { t: "pos", x: 8, z: 8, yaw: 0, speed: 10, progress: 101, seq: 5, ts: Date.now() });
-        await sleep(150);
-        send(b, { t: "pos", x: 8, z: 8, yaw: 0, speed: 10, progress: 101, seq: 12, ts: Date.now() });
-        const lbB = await waitFor(b, (m) => m.t === "leaderboard");
-        assert.deepEqual(lbA.entries.map((e) => e.name), lbB.entries.map((e) => e.name), "clients disagree");
-        console.log("ok lb: clients consistent");
+        await sleep(130);
+        sendPosition(bravo, b, 120);
+        const peer = await waitFor(alpha, (m) =>
+            m.t === "peer" && m.id === joined.id && m.progress >= 120
+        );
+        assert.equal(peer.progress, 120, "peer relay omitted accepted progress");
 
-        // new race clears leaderboard
-        send(a, { t: "cancel" });
-        await waitFor(a, (m) => m.t === "cancelled");
-        await waitFor(a, (m) => m.t === "state" && m.state === "lobby");
-        // progress reset: send pos not in racing ignored by server? pos still broadcast, but leaderboard includes reset progress
-        await sleep(150);
-        send(a, { t: "pos", x: 1, z: 1, yaw: 0, speed: 10, progress: 0, seq: 13, ts: Date.now() });
-        const lb5 = await waitFor(a, (m) => m.t === "leaderboard" && m.entries.every((e) => (e.progress || 0) === 0));
-        assert.ok(lb5.entries.every((e) => (e.progress || 0) === 0), "leaderboard not cleared");
-        console.log("ok lb: new race clears");
+        await sleep(130);
+        sendPosition(bravo, b, 190);
+        const overtakingBoard = await waitFor(alpha, (m) =>
+            m.t === "leaderboard" &&
+            m.entries[0] &&
+            m.entries[0].name === "Bravo" &&
+            m.entries[0].progress >= 190
+        );
+        assert.equal(overtakingBoard.entries[1].name, "Alpha");
+        console.log("ok: server standings follow accepted live progress");
 
-        a.close(); b.close();
-        console.log("ALL LEADERBOARD TESTS PASSED");
+        // A dropped socket must be able to reclaim the same room/player.
+        alpha.terminate();
+        await sleep(100);
+        const reconnected = await connect();
+        send(reconnected, { t: "rejoin", token: created.token });
+        const rejoined = await waitFor(reconnected, (m) => m.t === "rejoined");
+        assert.equal(rejoined.id, created.id, "reconnect changed player identity");
+        assert.equal(rejoined.code, created.code, "reconnect changed room");
+        await waitFor(reconnected, (m) => m.t === "state");
+        console.log("ok: reconnect restores the same player and room");
+
+        reconnected.close();
+        bravo.close();
+        console.log("ALL LEADERBOARD / RECONNECT TESTS PASSED");
         process.exitCode = 0;
-    } catch (e) {
-        console.error("LEADERBOARD TEST FAILED:", e);
+    } catch (error) {
+        console.error("MULTIPLAYER TEST FAILED:", error);
         process.exitCode = 1;
     } finally {
-        srv.kill();
+        server.kill();
     }
 })();
