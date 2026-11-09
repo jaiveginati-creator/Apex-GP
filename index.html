@@ -4318,11 +4318,15 @@ const PIT_EXIT_END=280;       // merge back onto racing surface
 const PIT_CORRIDOR_START=1380;
 const PIT_CORRIDOR_SPAN=530;  // 1380 -> 310 (wraps through 0)
 
-const PIT_LANE_PATH_LATERAL=44;   // fast-lane driving line
-const PIT_BOX_LATERAL=49.5;       // cars stop here in their box
+const DEFAULT_PIT_LANE_PATH_LATERAL=44;
+let PIT_LANE_PATH_LATERAL=DEFAULT_PIT_LANE_PATH_LATERAL;   // fast-lane driving line
+const DEFAULT_PIT_BOX_LATERAL=49.5;
+let PIT_BOX_LATERAL=DEFAULT_PIT_BOX_LATERAL;       // cars stop here in their box
 const PIT_LANE_HALF_WIDTH=6.5;    // lane spans ~37.5 -> 50.5
-const PIT_ENTRY_LATERAL=9;        // where the taper meets the track
-const PIT_EXIT_LATERAL=13;        // where the taper rejoins
+const DEFAULT_PIT_ENTRY_LATERAL=9;
+let PIT_ENTRY_LATERAL=DEFAULT_PIT_ENTRY_LATERAL;        // where the taper meets the track
+const DEFAULT_PIT_EXIT_LATERAL=13;
+let PIT_EXIT_LATERAL=DEFAULT_PIT_EXIT_LATERAL;        // where the taper rejoins
 
 const PIT_LANE_SPEED_LIMIT=80/3.6;    // 80 km/h in m/s
 const PIT_SPEED_WARN=83/3.6;
@@ -26981,9 +26985,14 @@ function trackPointsFor(id){
 function setActiveTrackData(id){
 
     activeTrackId=id==="spa"?"spa":id==="monza"?"monza":"jeddah";
-    TRACK_HALF_WIDTH=activeTrackId==="monza"
+    const isMonza=activeTrackId==="monza";
+    TRACK_HALF_WIDTH=isMonza
         ?MONZA_TRACK_HALF_WIDTH
         :DEFAULT_TRACK_HALF_WIDTH;
+    PIT_LANE_PATH_LATERAL=isMonza?11:DEFAULT_PIT_LANE_PATH_LATERAL;
+    PIT_BOX_LATERAL=isMonza?17.5:DEFAULT_PIT_BOX_LATERAL;
+    PIT_ENTRY_LATERAL=isMonza?7:DEFAULT_PIT_ENTRY_LATERAL;
+    PIT_EXIT_LATERAL=isMonza?7:DEFAULT_PIT_EXIT_LATERAL;
 
     buildTrackCurveData(
         trackPointsFor(activeTrackId)
