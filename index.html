@@ -4308,7 +4308,7 @@ const sceneryFootprints=[];
    indices (1600 wrap the lap).
    ========================================================= */
 
-const PIT_SIDE=1;
+let PIT_SIDE=1;
 
 const PIT_ENTRY_START=1400;   // entry taper begins
 const PIT_LANE_START=1560;    // speed limit line / lane proper
@@ -26989,6 +26989,7 @@ function setActiveTrackData(id){
     TRACK_HALF_WIDTH=isMonza
         ?MONZA_TRACK_HALF_WIDTH
         :DEFAULT_TRACK_HALF_WIDTH;
+    PIT_SIDE=isMonza?-1:1;
     /* Monza's pit lane must sit outside the widened racing
        surface. Keep the entry/exit tapers just beyond the edge. */
     PIT_LANE_PATH_LATERAL=isMonza?29:DEFAULT_PIT_LANE_PATH_LATERAL;
@@ -28065,8 +28066,10 @@ window.addEventListener(
    lane proper (speed limit), pit boxes and exit merge.
    ========================================================= */
 
-const PIT_INNER_HALF=3.5;     // path -> inner edge (40.5)
-const PIT_OUTER_HALF=11;      // path -> garage front (55)
+const PIT_INNER_HALF=3.5;
+const PIT_OUTER_HALF=11;
+const pitInnerEdge=row=>row.lateral-PIT_SIDE*PIT_INNER_HALF;
+const pitOuterEdge=row=>row.lateral+PIT_SIDE*PIT_OUTER_HALF;
 
 let PIT_ENTRY_LEN=
     getForwardTrackDistance(
@@ -28128,7 +28131,7 @@ function getPitLateralProfile(index){
         );
 
     if(s<=0){
-        return PIT_ENTRY_LATERAL;
+        return PIT_SIDE*PIT_ENTRY_LATERAL;
     }
 
     if(s<PIT_ENTRY_LEN){
@@ -28140,7 +28143,7 @@ function getPitLateralProfile(index){
                 PIT_ENTRY_LEN
             );
 
-        return THREE.MathUtils.lerp(
+        return PIT_SIDE*THREE.MathUtils.lerp(
             PIT_ENTRY_LATERAL,
             PIT_LANE_PATH_LATERAL,
             t
@@ -28148,11 +28151,11 @@ function getPitLateralProfile(index){
     }
 
     if(s<PIT_ENTRY_LEN+PIT_LANE_LEN){
-        return PIT_LANE_PATH_LATERAL;
+        return PIT_SIDE*PIT_LANE_PATH_LATERAL;
     }
 
     if(s>=PIT_TOTAL_LEN){
-        return PIT_EXIT_LATERAL;
+        return PIT_SIDE*PIT_EXIT_LATERAL;
     }
 
     const t=
@@ -28162,7 +28165,7 @@ function getPitLateralProfile(index){
             PIT_TOTAL_LEN
         );
 
-    return THREE.MathUtils.lerp(
+    return PIT_SIDE*THREE.MathUtils.lerp(
         PIT_LANE_PATH_LATERAL,
         PIT_EXIT_LATERAL,
         t
@@ -28371,7 +28374,7 @@ pitBoxes.push({
         .p.clone()
         .addScaledVector(
             getTrackSample(PLAYER_PIT_BOX_INDEX).normal,
-            PIT_BOX_LATERAL
+            PIT_SIDE*PIT_BOX_LATERAL
         )
 });
 
@@ -28562,22 +28565,22 @@ function buildPitStrip(
 
 /* lane surface */
 buildPitStrip(
-    row=>row.lateral-PIT_INNER_HALF,
-    row=>row.lateral+PIT_OUTER_HALF,
+    row=>pitInnerEdge(row),
+    row=>pitOuterEdge(row),
     .02,
     pitAsphaltMaterial
 );
 
 /* white edge lines */
 buildPitStrip(
-    row=>row.lateral-PIT_INNER_HALF,
-    row=>row.lateral-PIT_INNER_HALF+.3,
+    row=>pitInnerEdge(row),
+    row=>pitInnerEdge(row)+PIT_SIDE*.3,
     .045,
     pitLineMaterial
 );
 
 buildPitStrip(
-    row=>row.lateral+PIT_OUTER_HALF-.3,
+    row=>pitOuterEdge(row)-PIT_SIDE*.3,
     row=>row.lateral+PIT_OUTER_HALF,
     .045,
     pitLineMaterial
@@ -28585,8 +28588,8 @@ buildPitStrip(
 
 /* dashed fast-lane / box-lane separator */
 buildPitStrip(
-    row=>row.lateral+4.6,
-    row=>row.lateral+4.9,
+    row=>row.lateral+PIT_SIDE*4.6,
+    row=>row.lateral+PIT_SIDE*4.9,
     .045,
     pitDashMaterial,
     row=>Math.floor(row.s/5)%2===0
@@ -28608,7 +28611,7 @@ function createPitCrossLine(
             getTrackSample(index).p.clone()
                 .addScaledVector(
                     getTrackSample(index).normal,
-                    PIT_LANE_PATH_LATERAL
+                    PIT_SIDE*PIT_LANE_PATH_LATERAL
                 ),
             null
         );
@@ -28749,7 +28752,7 @@ const pitLaneStartPathIndex=
         getTrackSample(PIT_LANE_START).p.clone()
             .addScaledVector(
                 getTrackSample(PIT_LANE_START).normal,
-                PIT_LANE_PATH_LATERAL
+                PIT_SIDE*PIT_LANE_PATH_LATERAL
             ),
         null
     );
@@ -28832,8 +28835,7 @@ for(
             )+.12
             :1.2;
 
-    const edge=
-        row.lateral-PIT_INNER_HALF;
+    const edge=pitInnerEdge(row);
 
     pitTransform.position.copy(sample.p)
         .addScaledVector(sample.normal,edge);
@@ -29767,7 +29769,7 @@ function createLimitSign(index){
     group.position.copy(d.p)
         .addScaledVector(
             d.normal,
-            PIT_LANE_PATH_LATERAL
+            PIT_SIDE*PIT_LANE_PATH_LATERAL
         );
 
     group.position.y=d.p.y;
@@ -35711,10 +35713,10 @@ function loadMonzaWorld(){
     ));
     monzaWorld.add(buildPitStrip(
         row=>row.lateral-PIT_INNER_HALF,
-        row=>row.lateral-PIT_INNER_HALF+.32,.05,pitLineMaterial
+        row=>pitInnerEdge(row)+PIT_SIDE*.32,.05,pitLineMaterial
     ));
     monzaWorld.add(buildPitStrip(
-        row=>row.lateral+PIT_OUTER_HALF-.32,
+        row=>pitOuterEdge(row)-PIT_SIDE*.32,
         row=>row.lateral+PIT_OUTER_HALF,.05,pitLineMaterial
     ));
     monzaWorld.add(buildPitStrip(
@@ -35753,50 +35755,50 @@ function loadMonzaWorld(){
        ----------------------------------------------------- */
     const pitSample=getTrackSample(20);
     const pitYaw=getTrackTangentAngle(pitSample);
-    const pitCenter=frame(pitSample,0,92,0);
+    const pitCenter=frame(pitSample,0,PIT_SIDE*92,0);
     box(monzaWorld,22,11,166,pitCenter.x,5.5,pitCenter.z,pitYaw,concrete);
-    const pitGlass=frame(pitSample,0,80,5.8);
+    const pitGlass=frame(pitSample,0,PIT_SIDE*80,5.8);
     box(monzaWorld,.5,3.6,158,pitGlass.x,pitGlass.y,pitGlass.z,pitYaw,glass,false);
-    const pitUpper=frame(pitSample,0,92,12.2);
+    const pitUpper=frame(pitSample,0,PIT_SIDE*92,12.2);
     box(monzaWorld,19,3,158,pitUpper.x,pitUpper.y,pitUpper.z,pitYaw,whitePaint);
-    const pitRoof=frame(pitSample,0,92,14.2);
+    const pitRoof=frame(pitSample,0,PIT_SIDE*92,14.2);
     box(monzaWorld,27,1.2,174,pitRoof.x,pitRoof.y,pitRoof.z,pitYaw,roofMat);
-    const balcony=frame(pitSample,0,76,10.2);
+    const balcony=frame(pitSample,0,PIT_SIDE*76,10.2);
     box(monzaWorld,3,.55,164,balcony.x,balcony.y,balcony.z,pitYaw,roofMat);
     for(let i=0;i<10;i++){
         const along=-72+i*16;
-        const bay=frame(pitSample,along,79,2.2);
+        const bay=frame(pitSample,along,PIT_SIDE*79,2.2);
         box(monzaWorld,.35,4.2,12,bay.x,bay.y,bay.z,pitYaw,concreteDark,false);
-        const door=frame(pitSample,along,78.9,2.5);
+        const door=frame(pitSample,along,PIT_SIDE*78.9,2.5);
         box(monzaWorld,.22,3.3,10,door.x,door.y,door.z,pitYaw,
             i%2===0?glass:concreteDark,false);
     }
     /* Team hospitality blocks behind the pit building. */
     for(let i=0;i<7;i++){
         const along=-66+i*22;
-        const p=frame(pitSample,along,130,0);
+        const p=frame(pitSample,along,PIT_SIDE*130,0);
         box(monzaWorld,24,8,18,p.x,4,p.z,pitYaw,
             [whitePaint,concrete,glass,redPaint][i%4]);
-        const roof=frame(pitSample,along,130,8.3);
+        const roof=frame(pitSample,along,PIT_SIDE*130,8.3);
         box(monzaWorld,27,.8,21,roof.x,roof.y,roof.z,pitYaw,roofMat);
-        const window=frame(pitSample,along,120,4.7);
+        const window=frame(pitSample,along,PIT_SIDE*120,4.7);
         box(monzaWorld,.3,2.8,16,window.x,window.y,window.z,pitYaw,glass,false);
     }
     /* Race control / timing tower. */
-    const tower=frame(pitSample,78,116,0);
+    const tower=frame(pitSample,78,PIT_SIDE*116,0);
     box(monzaWorld,22,26,18,tower.x,13,tower.z,pitYaw,concreteDark);
-    const towerGlass=frame(pitSample,78,106,18);
+    const towerGlass=frame(pitSample,78,PIT_SIDE*106,18);
     box(monzaWorld,.5,5,17,towerGlass.x,towerGlass.y,towerGlass.z,pitYaw,glass,false);
-    const towerRoof=frame(pitSample,78,116,26.5);
+    const towerRoof=frame(pitSample,78,PIT_SIDE*116,26.5);
     box(monzaWorld,25,1,21,towerRoof.x,towerRoof.y,towerRoof.z,pitYaw,roofMat);
 
     /* Garage-front service modules and individual pit-box marks. */
     for(let i=0;i<pitBoxes.length;i++){
         const b=pitBoxes[i],d=getTrackSample(b.index);
-        const gpos=b.pos.clone().addScaledVector(d.normal,15);
+        const gpos=b.pos.clone().addScaledVector(d.normal,PIT_SIDE*15);
         const garage=box(monzaWorld,13,6,11,gpos.x,gpos.y+3,gpos.z,
             getTrackTangentAngle(d),i%2?concrete:whitePaint);
-        const doorPos=b.pos.clone().addScaledVector(d.normal,8.7);
+        const doorPos=b.pos.clone().addScaledVector(d.normal,PIT_SIDE*8.7);
         box(monzaWorld,.22,4.6,9,doorPos.x,doorPos.y+2.3,doorPos.z,
             getTrackTangentAngle(d),glass,false);
         registerSceneryFootprint(gpos.x,gpos.z,14,12);
@@ -36151,7 +36153,7 @@ const PIT_SPEED_CAP=115/3.6;
 let PLAYER_BOX_S=0;
 
 /* lane lateral where the player must stand to be served */
-let PLAYER_BOX_LATERAL=PIT_LANE_PATH_LATERAL;
+let PLAYER_BOX_LATERAL=PIT_SIDE*PIT_LANE_PATH_LATERAL;
 
 
 function refreshPlayerBox(){
@@ -36168,8 +36170,8 @@ function refreshPlayerBox(){
 
     PLAYER_BOX_LATERAL=
         playerBox
-            ?PIT_BOX_LATERAL
-            :PIT_LANE_PATH_LATERAL;
+            ?PIT_SIDE*PIT_BOX_LATERAL
+            :PIT_SIDE*PIT_LANE_PATH_LATERAL;
 
 }
 
@@ -36698,31 +36700,17 @@ function updatePitSystem(dt){
         !playerPit.stopping
     ){
 
-        const minLat=
-            row.lateral-PIT_INNER_HALF+1.5;
+        const laneLateral=PIT_SIDE*info.lateral;
+        const pathLateral=PIT_SIDE*row.lateral;
+        const minLat=pathLateral-PIT_INNER_HALF+1.5;
+        const maxLat=pathLateral+PIT_OUTER_HALF-1.6;
 
-        const maxLat=
-            row.lateral+PIT_OUTER_HALF-1.6;
-
-        if(info.lateral<minLat){
-
-            pos.addScaledVector(
-                info.sample.normal,
-                Math.min(
-                    minLat-info.lateral,
-                    10*dt
-                )
-            );
-
-        }else if(info.lateral>maxLat){
-
-            pos.addScaledVector(
-                info.sample.normal,
-                -Math.min(
-                    info.lateral-maxLat,
-                    10*dt
-                )
-            );
+        if(laneLateral<minLat){
+            pos.addScaledVector(info.sample.normal,
+                PIT_SIDE*Math.min(minLat-laneLateral,10*dt));
+        }else if(laneLateral>maxLat){
+            pos.addScaledVector(info.sample.normal,
+                -PIT_SIDE*Math.min(laneLateral-maxLat,10*dt));
         }
     }
 
@@ -36764,8 +36752,8 @@ function updatePitSystem(dt){
             info.lateral-PLAYER_BOX_LATERAL;
 
         const inLaneLateral=
-            info.lateral>
-                row.lateral-7;
+            PIT_SIDE*info.lateral>
+                PIT_SIDE*row.lateral-7;
 
         /* armed well before the box, tolerant of the exact frame */
         if(
@@ -37974,7 +37962,7 @@ function updateAIPitState(ai,index,dt){
             !playerPit.stopping&&
             Math.abs(
                 playerPit.lateral-
-                PIT_LANE_PATH_LATERAL
+                PIT_SIDE*PIT_LANE_PATH_LATERAL
             )<5
         ){
 
@@ -38012,7 +38000,7 @@ function getPitTargetLane(ai,index){
     }
 
     if(st.phase==="stopped"){
-        return PIT_BOX_LATERAL;
+        return PIT_SIDE*PIT_BOX_LATERAL;
     }
 
     let lane=getPitLateralProfile(index);
@@ -38035,7 +38023,7 @@ function getPitTargetLane(ai,index){
 
             lane=THREE.MathUtils.lerp(
                 lane,
-                PIT_BOX_LATERAL,
+                PIT_SIDE*PIT_BOX_LATERAL,
                 t
             );
         }
