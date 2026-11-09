@@ -336,6 +336,7 @@
         },
 
         leave: function () {
+            this.stopLocalTestBot(true);
             if (this.client) {
                 try {
                     this.client.leave();
@@ -368,6 +369,7 @@
         },
 
         disconnect: function (silent) {
+            this.stopLocalTestBot(true);
             if (this.client) {
                 try {
                     this.client.leave();
@@ -403,6 +405,9 @@
         onRoomState: function (m, selfId) {
             this.roomState = m.state || "lobby";
             this.lastStateMsg = m;
+            if (this.roomState === "lobby" || this.roomState === "finished") {
+                this.tickLocalTestBot();
+            }
             if (m.config) {
                 this.config = {
                     track: m.config.track || "jeddah",
@@ -461,6 +466,12 @@
             const B = this.bridge();
             this.roomState = "countdown";
             this.results = null;
+            if (this.localBot) {
+                this.localBot.lap = 0;
+                this.localBot.lastMainLap = 0;
+                (this.localBot.lapTimers || []).forEach(function (timer) { clearTimeout(timer); });
+                this.localBot.lapTimers = [];
+            }
             this.lastSentLap = 0;
             this.lastStateMsg = null;
             this.leaderboard = null;
@@ -555,6 +566,7 @@
             if (completedLap <= this.lastSentLap) return; // no duplicates
             this.lastSentLap = completedLap;
             this.client.sendLap(completedLap, clockMs);
+            this.tickLocalTestBot();
         },
 
         trackMatches: function () {
@@ -704,6 +716,134 @@
             }
         },
 
+
+        /* Localhost-only second client for multiplayer testing.
+         * It shadows the local driver's racing line with a small gap,
+         * using a completely separate WebSocket identity. */
+        isLocalTestHost: function () {
+            return typeof location !== "undefined" &&
+                (location.hostname === "localhost" ||
+                 location.hostname === "127.0.0.1" ||
+                 location.hostname === "::1");
+        },
+
+        localBot: null,
+
+        startLocalTestBot: function () {
+            if (!this.isLocalTestHost()) return;
+            if (!this.connected || !this.client || !this.client.code) {
+                this.setLocalBotStatus("Connect to a room first.");
+                return;
+            }
+            if (this.localBot && this.localBot.client) {
+                this.setLocalBotStatus("Test driver is already in the room.");
+                return;
+            }
+            if (typeof NetClient === "undefined") {
+                this.setLocalBotStatus("Network client is unavailable.");
+                return;
+            }
+
+            const self = this;
+            const B = this.bridge();
+            const state = {
+                client: null,
+                interval: null,
+                lapTimers: [],
+                lap: 0,
+                lastMainLap: 0,
+                startedAt: 0
+            };
+            this.localBot = state;
+            this.setLocalBotStatus("Connecting second driver…");
+
+            state.client = new NetClient({
+                url: this.url,
+                autoReconnect: false,
+                onJoined: function (m) {
+                    self.setLocalBotStatus("CONNECTED · " + (m.code || self.client.code));
+                    state.startedAt = Date.now();
+                    state.interval = setInterval(function () {
+                        if (!self.localBot || self.localBot !== state || !state.client) return;
+                        if (!self.connected || !self.client || self.roomState === "lobby" ||
+                            self.roomState === "finished") return;
+                        const bridge = self.bridge();
+                        if (!bridge || typeof bridge.local !== "function") return;
+                        const p = bridge.local();
+                        if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.z)) return;
+
+                        const yaw = Number.isFinite(p.yaw) ? p.yaw : 0;
+                        const speed = Number.isFinite(p.speed) ? p.speed : 0;
+                        // Keep the bot just behind and slightly beside the human car.
+                        const gap = 14;
+                        const lane = 2.8;
+                        const x = p.x - Math.sin(yaw) * gap + Math.cos(yaw) * lane;
+                        const z = p.z - Math.cos(yaw) * gap - Math.sin(yaw) * lane;
+                        const progress = Number.isFinite(p.progress)
+                            ? Math.max(0, p.progress - gap)
+                            : null;
+                        state.client.sendPos(x, z, yaw, speed, progress);
+                    }, 50);
+                    self.tickLocalTestBot();
+                },
+                onError: function (e) {
+                    self.setLocalBotStatus("Bot error: " + e);
+                    self.stopLocalTestBot(true);
+                },
+                onDisconnect: function () {
+                    if (self.localBot === state) {
+                        self.setLocalBotStatus("Test driver disconnected.");
+                        self.stopLocalTestBot(true);
+                    }
+                }
+            });
+
+            state.client.join(this.client.code, "Local Test Bot");
+        },
+
+        tickLocalTestBot: function () {
+            const state = this.localBot;
+            if (!state || !state.client || !state.client.id) return;
+            if (this.roomState !== "racing") {
+                if (this.roomState === "lobby" || this.roomState === "finished") {
+                    state.lastMainLap = 0;
+                    state.lap = 0;
+                }
+                return;
+            }
+            const mainLap = Math.max(0, Number(this.lastSentLap) || 0);
+            if (mainLap <= state.lastMainLap) return;
+            state.lastMainLap = mainLap;
+            const self = this;
+            const timer = setTimeout(function () {
+                if (!self.localBot || self.localBot !== state ||
+                    !state.client || self.roomState !== "racing") return;
+                if (state.lap + 1 !== mainLap) return;
+                state.lap = mainLap;
+                state.client.sendLap(state.lap, Date.now() - (self.startsAt || state.startedAt));
+                self.setLocalBotStatus("CONNECTED · lap " + state.lap);
+            }, 3000);
+            state.lapTimers.push(timer);
+        },
+
+        setLocalBotStatus: function (message) {
+            if (typeof document === "undefined") return;
+            const el = document.getElementById("netLocalBotStatus");
+            if (el) el.textContent = message;
+        },
+
+        stopLocalTestBot: function (silent) {
+            const state = this.localBot;
+            if (!state) return;
+            this.localBot = null;
+            if (state.interval) clearInterval(state.interval);
+            (state.lapTimers || []).forEach(function (timer) { clearTimeout(timer); });
+            if (state.client) {
+                try { state.client.leave(); } catch (e) {}
+            }
+            if (!silent) this.setLocalBotStatus("Test driver stopped.");
+        },
+
         buildUI: function () {
             if (typeof document === "undefined") return;
             if (document.getElementById("netPanel")) return;
@@ -728,6 +868,14 @@
                 "</div>" +
                 "<div>ROOM: <span id='netCode'>—</span></div>" +
                 "<div id='netStatus'>idle</div>" +
+                (this.isLocalTestHost()
+                    ? "<div style='margin:6px 0;padding:6px;border:1px dashed #596273'>" +
+                      "<div style='color:#f2d132;margin-bottom:4px'>LOCAL TEST DRIVER</div>" +
+                      "<button id='netAddLocalBot'>ADD SECOND DRIVER</button> " +
+                      "<button id='netStopLocalBot' style='background:#596273'>STOP</button>" +
+                      "<div id='netLocalBotStatus' style='margin-top:4px;color:#9fd'>localhost only · connect to a room first</div>" +
+                      "</div>"
+                    : "") +
                 "<div id='netPeers' style='margin:4px 0'></div>" +
                 "<div id='netLog' style='font-size:11px;color:#8a93a3'></div>" +
                 "<div id='netRace' style='display:none;margin-top:6px;border-top:1px solid #333;padding-top:6px'>" +
@@ -784,6 +932,12 @@
             document.getElementById("netLeave").onclick = function () {
                 self.leave();
             };
+            if (self.isLocalTestHost()) {
+                const addBot = document.getElementById("netAddLocalBot");
+                const stopBot = document.getElementById("netStopLocalBot");
+                if (addBot) addBot.onclick = function () { self.startLocalTestBot(); };
+                if (stopBot) stopBot.onclick = function () { self.stopLocalTestBot(); };
+            }
             document.getElementById("netReady").onclick = function () {
                 if (self.client) {
                     self.readyFlag = !self.readyFlag;
