@@ -67,7 +67,7 @@ function httpGet(path) {
 (async () => {
     const srv = spawn(process.execPath, ["server.js"], {
         cwd: __dirname,
-        env: { ...process.env, PORT: String(PORT), HOST: "127.0.0.1", COUNTDOWN_MS: "200", MIN_LAP_MS: "100" },
+        env: { ...process.env, PORT: String(PORT), HOST: "127.0.0.1", COUNTDOWN_MS: "200", MIN_LAP_MS: "100", RECONNECT_GRACE_MS: "150" },
         stdio: ["ignore", "pipe", "pipe"],
     });
     const out = [];
