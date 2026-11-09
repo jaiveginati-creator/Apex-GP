@@ -887,7 +887,7 @@
                 "<button id='netCancel' style='display:none'>CANCEL</button>" +
                 "</div>" +
                 "<div id='netHostCfg' style='margin-bottom:4px'>" +
-                "TRACK <select id='netTrack'><option value='jeddah'>JEDDAH</option><option value='spa'>SPA</option></select> " +
+                "TRACK <select id='netTrack'><option value='jeddah'>JEDDAH</option><option value='spa'>SPA</option><option value='monza'>MONZA</option></select> " +
                 "LAPS <input id='netLaps' style='width:40px' value='5'>" +
                 "<button id='netApplyCfg'>SET</button>" +
                 "</div>" +
