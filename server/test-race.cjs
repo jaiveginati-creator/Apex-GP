@@ -126,10 +126,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
         // 2. invalid config values rejected
         send(host, { t: "config", track: "monza", laps: 5 });
-        assert.equal(
-            (await waitFor(host, (m) => m.t === "error")).error,
-            "bad-track"
+        const monzaState = await waitFor(
+            host,
+            (m) => m.t === "state" && m.config.track === "monza"
         );
+        assert.equal(monzaState.config.laps, 5);
+        console.log("ok Monza config accepted");
         send(host, { t: "config", track: "spa", laps: 99 });
         assert.equal(
             (await waitFor(host, (m) => m.t === "error")).error,

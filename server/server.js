@@ -28,7 +28,7 @@ const CODE_RE = /^[A-Z0-9]{4,6}$/;
 const MAX_NAME_LEN = 24;
 
 /* race config + validation bounds */
-const TRACK_ALLOW = ["jeddah", "spa"];
+const TRACK_ALLOW = ["jeddah", "spa", "monza"];
 const DEFAULT_LAPS = 5;
 const MIN_LAPS = 1;
 const MAX_LAPS = 10;
@@ -39,7 +39,7 @@ const COUNTDOWN_MS = Number(process.env.COUNTDOWN_MS || 5000);
  * gross fabrication or spam trips this — slow laps,
  * crashes and standing starts are always slower.
  * MIN_LAP_MS env overrides for tests. */
-const TRACK_MIN_LAP_MS = { jeddah: 50000, spa: 55000 };
+const TRACK_MIN_LAP_MS = { jeddah: 50000, spa: 55000, monza: 45000 };
 const MIN_LAP_OVERRIDE = process.env.MIN_LAP_MS
     ? Number(process.env.MIN_LAP_MS)
     : null;

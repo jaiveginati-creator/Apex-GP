@@ -4245,16 +4245,14 @@ jeddahWorld.name="jeddahWorld";
 const spaWorld=new THREE.Group();
 spaWorld.name="spaWorld";
 spaWorld.visible=false;
-
+const monzaWorld=new THREE.Group();
+monzaWorld.name="monzaWorld";
+monzaWorld.visible=false;
 scene.add(jeddahWorld);
 scene.add(spaWorld);
-
+scene.add(monzaWorld);
 let activeWorldGroup=jeddahWorld;
-
-const footprintsByTrack={
-    jeddah:null,
-    spa:null
-};
+const footprintsByTrack={jeddah:null,spa:null,monza:null};
 
 const __trackCollecting={on:false,adds:[]};
 const __sceneAdd=scene.add.bind(scene);
@@ -4505,6 +4503,32 @@ const spaPoints=[
    spaPoints = Spa-Francorchamps (y carries elevation).
    Sample indices are arclength fractions, so pit
    indices, corridors and boxes line up on both. */
+/* =========================================================
+   MONZA CONTROL POINTS — modern Grand Prix layout
+   Rettifilo, Curva Grande, Roggia, Lesmos, Ascari,
+   Parabolica and the main straight.
+   ========================================================= */
+const monzaPoints=[
+ [0,0,900],[0,0,650],[0,0,350],[0,0,80],
+ [8,0,-35],[48,0,-75],[52,0,-125],[12,0,-150],
+ [-65,0,-145],[-180,0,-115],[-330,0,-60],
+ [-465,0,20],[-535,0,95],[-560,0,180],
+ [-530,0,245],[-460,0,265],[-390,0,245],
+ [-330,0,195],[-285,0,135],[-260,0,70],
+ [-245,0,5],[-215,0,-45],[-175,0,-55],
+ [-140,0,-25],[-125,0,30],[-145,0,85],
+ [-195,0,130],[-235,0,175],[-230,0,225],
+ [-190,0,265],[-125,0,285],[-70,0,270],
+ [-30,0,230],[5,0,170],[40,0,105],
+ [90,0,40],[155,0,-5],[220,0,-35],
+ [300,0,-50],[390,0,-45],[475,0,-15],
+ [525,0,35],[535,0,95],[500,0,155],
+ [430,0,205],[345,0,240],[250,0,260],
+ [160,0,275],[80,0,300],[35,0,360],
+ [18,0,470],[8,0,650]
+];
+
+
 let cornerPoints=[];
 
 let trackCurve=null;
@@ -25792,16 +25816,15 @@ let activeTrackId="jeddah";
 function trackPointsFor(id){
     return id==="spa"
         ?spaPoints
-        :rawPoints;
+        :id==="monza"
+            ?monzaPoints.map(p=>[p[0]*.913,p[1],p[2]*.913])
+            :rawPoints;
 }
 
 
 function setActiveTrackData(id){
 
-    activeTrackId=
-        id==="spa"
-            ?"spa"
-            :"jeddah";
+    activeTrackId=id==="spa"?"spa":id==="monza"?"monza":"jeddah";
 
     buildTrackCurveData(
         trackPointsFor(activeTrackId)
@@ -34294,13 +34317,74 @@ function loadSpaWorld(){
 }
 
 
+
+let monzaWorldBuilt=false;
+function loadMonzaWorld(){
+    if(monzaWorldBuilt)return;
+    console.log("[TRACK] building Monza world...");
+    while(monzaWorld.children.length)monzaWorld.remove(monzaWorld.children[0]);
+    if(!footprintsByTrack.jeddah)saveFootprints("jeddah");
+    setActiveTrackData("monza");
+    sceneryFootprints.length=0;
+    activeWorldGroup=monzaWorld;
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(5600,5600),
+        new THREE.MeshStandardMaterial({color:0x557b43,roughness:1}));
+    ground.rotation.x=-Math.PI/2;ground.position.y=-1.1;ground.receiveShadow=true;
+    monzaWorld.add(ground);
+    const road=createRibbon(TRACK_HALF_WIDTH,.01,asphaltMaterial,32);
+    road.receiveShadow=true;monzaWorld.add(road);
+    monzaWorld.add(createRibbon(TRACK_HALF_WIDTH+KERB_WIDTH+RUNOFF_WIDTH,-.015,runoffMaterial));
+    const red=new THREE.InstancedMesh(kerbGeometry,redKerbMaterial,MAX_KERB_INSTANCES);
+    const white=new THREE.InstancedMesh(kerbGeometry,whiteKerbMaterial,MAX_KERB_INSTANCES);
+    const obj=new THREE.Object3D();let rc=0,wc=0;
+    for(let i=0;i<TRACK_SAMPLES;i+=KERB_SAMPLE_STEP){
+        if(!isNearKerbCorner(i))continue;
+        const d=getTrackSample(i);
+        for(const side of [-1,1]){
+            obj.position.copy(d.p).addScaledVector(d.normal,side*(TRACK_HALF_WIDTH+KERB_WIDTH/2));
+            obj.position.y=d.p.y+.06;obj.rotation.set(0,getTrackTangentAngle(d),0);
+            pitchToGrade(obj,i);obj.updateMatrix();
+            if(Math.floor(i/KERB_SAMPLE_STEP)%2===0)red.setMatrixAt(rc++,obj.matrix);
+            else white.setMatrixAt(wc++,obj.matrix);
+        }
+    }
+    red.count=rc;white.count=wc;red.instanceMatrix.needsUpdate=true;white.instanceMatrix.needsUpdate=true;
+    red.receiveShadow=true;white.receiveShadow=true;monzaWorld.add(red,white);
+    const trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.7,.9,9,7),
+        new THREE.MeshStandardMaterial({color:0x59452e}),220);
+    const crowns=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(5.5,1),
+        new THREE.MeshStandardMaterial({color:0x315d32,roughness:1}),220);
+    const dummy=new THREE.Object3D();let planted=0;
+    for(let x=-1050;x<=1050&&planted<220;x+=100){
+        for(let z=-1050;z<=1050&&planted<220;z+=125){
+            if(distanceToTrackXZ(x,z)<125)continue;
+            const jitter=(planted*37)%31-15;
+            dummy.position.set(x+jitter,4.5,z-jitter);dummy.scale.setScalar(.85+(planted%5)*.06);
+            dummy.updateMatrix();trunks.setMatrixAt(planted,dummy.matrix);
+            dummy.position.y=13;dummy.scale.multiplyScalar(1.05);dummy.updateMatrix();
+            crowns.setMatrixAt(planted,dummy.matrix);planted++;
+        }
+    }
+    trunks.count=planted;crowns.count=planted;trunks.instanceMatrix.needsUpdate=true;crowns.instanceMatrix.needsUpdate=true;
+    monzaWorld.add(trunks,crowns);
+    const standMat=new THREE.MeshStandardMaterial({color:0x777b80,roughness:.9});
+    const roofMat=new THREE.MeshStandardMaterial({color:0x30343a,roughness:.8});
+    for(let n=0;n<3;n++){
+        const stand=new THREE.Mesh(new THREE.BoxGeometry(150,13,24),standMat);
+        stand.position.set(58,6.5,460-n*88);stand.castShadow=true;monzaWorld.add(stand);
+        const roof=new THREE.Mesh(new THREE.BoxGeometry(155,2,29),roofMat);
+        roof.position.set(58,14,460-n*88);monzaWorld.add(roof);
+    }
+    const pit=new THREE.Mesh(new THREE.BoxGeometry(155,15,20),new THREE.MeshStandardMaterial({color:0xc8c8c2}));
+    pit.position.set(-62,7.5,470);pit.castShadow=true;monzaWorld.add(pit);
+    footprintsByTrack.monza=sceneryFootprints.slice();
+    activeWorldGroup=jeddahWorld;setActiveTrackData("jeddah");restoreFootprints("jeddah");
+    monzaWorldBuilt=true;monzaWorld.visible=false;
+}
+
 function setActiveTrack(id){
 
-    const next=
-        id==="spa"
-            ?"spa"
-            :"jeddah";
-
+    const next=id==="spa"?"spa":id==="monza"?"monza":"jeddah";
     if(next==="spa"){
 
         try{
@@ -34317,12 +34401,19 @@ function setActiveTrack(id){
         }
 
     }
-
+    if(next==="monza"){
+        try{loadMonzaWorld();}catch(buildError){
+            console.warn("[TRACK] Monza build failed, staying put:",buildError);return false;
+        }
+    }
     if(
         next===activeTrackId&&
         (
-            (next==="spa")===
-            spaWorld.visible
+            next==="spa"
+                ?spaWorld.visible
+                :next==="monza"
+                    ?monzaWorld.visible
+                    :jeddahWorld.visible
         )
     ){
         return false;
@@ -34345,13 +34436,9 @@ function setActiveTrack(id){
         jeddahWorld.visible=
             next==="jeddah";
 
-        spaWorld.visible=
-            next==="spa";
-
-        activeWorldGroup=
-            next==="spa"
-                ?spaWorld
-                :jeddahWorld;
+        spaWorld.visible=next==="spa";
+        monzaWorld.visible=next==="monza";
+        activeWorldGroup=next==="spa"?spaWorld:next==="monza"?monzaWorld:jeddahWorld;
 
         rebuildPitDynamics();
 
@@ -34372,7 +34459,7 @@ function setActiveTrack(id){
         ){
 
             groundMaterial.color.set(
-                next==="spa"
+                next==="spa"||next==="monza"
                     ?0x9fbf7a
                     :0xffffff
             );
@@ -34414,13 +34501,9 @@ function setActiveTrack(id){
         jeddahWorld.visible=
             prevTrack==="jeddah";
 
-        spaWorld.visible=
-            prevTrack==="spa";
-
-        activeWorldGroup=
-            prevTrack==="spa"
-                ?spaWorld
-                :jeddahWorld;
+        spaWorld.visible=prevTrack==="spa";
+        monzaWorld.visible=prevTrack==="monza";
+        activeWorldGroup=prevTrack==="spa"?spaWorld:prevTrack==="monza"?monzaWorld:jeddahWorld;
 
         return false;
 
@@ -45103,13 +45186,14 @@ const TRACKS=[
             "Elevation everywhere, grip nowhere for free."
     },
     {
-        id:"track-3",
-        name:"COMING SOON",
-        location:"TBA",
-        corners:0,
+        id:"monza",
+        name:"MONZA",
+        location:"ITALY",
+        corners:11,
         rounds:TOTAL_LAPS,
-        playable:false,
-        blurb:"A third circuit is on the way."
+        lengthKm:"5.79 KM",
+        playable:true,
+        blurb:"Autodromo Nazionale Monza. Flat-out through Curva Grande, heavy braking for the Rettifilo and Roggia chicanes, the two Lesmos, Ascari and the Parabolica."
     }
 ];
 
@@ -47066,12 +47150,9 @@ function selectTrack(
     /* atomic commit: if Spa did not actually engage,
        fall back to Jeddah instead of showing one
        circuit while simulating another */
-    if(
-        track.id==="spa"&&
-        activeTrackId!=="spa"
-    ){
-        selectTrack("jeddah");
-        return;
+    if((track.id==="spa"&&activeTrackId!=="spa")||
+       (track.id==="monza"&&activeTrackId!=="monza")){
+        selectTrack("jeddah");return;
     }
 
     for(
