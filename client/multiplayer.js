@@ -1,33 +1,12 @@
-/* Apex GP net client (Phase 2 milestone 1).
- *
- * Standalone: no dependency on index.html globals. Talks
- * to server/server.js over WebSocket. Plain script (no
- * modules) so it loads from any static page.
- *
- *   const net = new NetClient({
- *     url: "ws://host:8765",
- *     onLobby: (players) => {...},
- *     onPeer: (peer) => {...},       // {id,x,z,yaw,speed}
- *     onLeft: (id, reason) => {...},
- *     onError: (code) => {...}, // bad-code|no-room|room-full|race-over|...
- *     onDisconnect: () => {...},
- *   });
- *   net.create("Name");              // -> onCreated({code,id,players})
- *   net.join("ABCDE", "Name");       // -> onJoined({...})
- *   net.sendPos(x, z, yaw, speed);   // throttled to 20 Hz
- *   net.sendReady(true);             // lobby ready flag
- *   net.sendConfig("spa", 5);        // host only
- *   net.sendStart();                 // host only -> countdown
- *   net.sendCancel();                // host only
- *   net.sendLap(3, 91234);           // completed lap 3 at race-clock ms
- *   net.leave();
+/* Apex GP multiplayer transport.
+ * Reliable reconnect + bounded position traffic for Render/WebSocket.
+ * The server remains the authority for rooms, laps and race results.
  */
-
 "use strict";
 
 function NetClient(opts) {
     opts = opts || {};
-    this.url = opts.url;
+    this.url = opts.url || "";
     this.onLobby = opts.onLobby || function () {};
     this.onPeer = opts.onPeer || function () {};
     this.onLeft = opts.onLeft || function () {};
@@ -42,6 +21,9 @@ function NetClient(opts) {
     this.onResults = opts.onResults || function () {};
     this.onCancelled = opts.onCancelled || function () {};
     this.onLeaderboard = opts.onLeaderboard || function () {};
+    this.onReconnecting = opts.onReconnecting || function () {};
+    this.onPong = opts.onPong || function () {};
+
     this.ws = null;
     this.id = null;
     this.code = null;
@@ -49,153 +31,193 @@ function NetClient(opts) {
     this.seq = 0;
     this.rtt = null;
     this.autoReconnect = opts.autoReconnect === true;
+    this.intent = null;
     this._reconnectAttempts = 0;
     this._reconnectTimer = null;
+    this._connectTimer = null;
+    this._handshakeTimer = null;
     this._reconnecting = false;
-    this.onReconnecting = opts.onReconnecting || function () {};
-    this._lastPosAt = 0;
     this._manualClose = false;
+    this._lastPosAt = 0;
 }
 
+NetClient.prototype._clearTimers = function () {
+    if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+    if (this._connectTimer) clearTimeout(this._connectTimer);
+    if (this._handshakeTimer) clearTimeout(this._handshakeTimer);
+    this._reconnectTimer = null;
+    this._connectTimer = null;
+    this._handshakeTimer = null;
+};
+
 NetClient.prototype._send = function (msg) {
-    if (this.ws && this.ws.readyState === 1) {
-        this.ws.send(JSON.stringify(msg));
+    const ws = this.ws;
+    if (!ws || ws.readyState !== 1) return false;
+    // Never let a backlog of old position packets build up.
+    if (msg.t === "pos" && ws.bufferedAmount > 96 * 1024) return false;
+    try {
+        ws.send(JSON.stringify(msg));
+        return true;
+    } catch (e) {
+        return false;
     }
 };
 
-NetClient.prototype._attach = function () {
-    const self = this;
-    this.ws.onmessage = function (ev) {
-        let msg;
-        try {
-            msg = JSON.parse(ev.data);
-        } catch (e) {
-            return;
+NetClient.prototype._handleMessage = function (socket, ev) {
+    if (socket !== this.ws) return;
+    let msg;
+    try {
+        msg = JSON.parse(ev.data);
+    } catch (e) {
+        return;
+    }
+    if (!msg || typeof msg.t !== "string") return;
+
+    if (msg.t === "created" || msg.t === "joined" || msg.t === "rejoined") {
+        if (this._handshakeTimer) clearTimeout(this._handshakeTimer);
+        this._handshakeTimer = null;
+        this.code = msg.code || this.code;
+        this.id = msg.id || this.id;
+        this.token = msg.token || this.token;
+        this.intent = null;
+        this._reconnectAttempts = 0;
+        this._reconnecting = false;
+        if (msg.t === "created") this.onCreated(msg);
+        else this.onJoined(msg);
+        this.onLobby(msg.players || []);
+        return;
+    }
+
+    if (msg.t === "lobby") this.onLobby(msg.players || []);
+    else if (msg.t === "peer") this.onPeer(msg);
+    else if (msg.t === "left") this.onLeft(msg.id, msg.reason);
+    else if (msg.t === "state") this.onState(msg);
+    else if (msg.t === "countdown") this.onCountdown(msg);
+    else if (msg.t === "lapUpdate") this.onLapUpdate(msg);
+    else if (msg.t === "finish") this.onFinish(msg);
+    else if (msg.t === "results") this.onResults(msg);
+    else if (msg.t === "cancelled") this.onCancelled(msg);
+    else if (msg.t === "leaderboard") this.onLeaderboard(msg);
+    else if (msg.t === "pong") {
+        if (Number.isFinite(msg.ts)) this.rtt = Math.max(0, Date.now() - msg.ts);
+        this.onPong(msg);
+    } else if (msg.t === "error") {
+        const fatalJoinErrors = ["bad-token", "no-room", "bad-code", "room-full", "race-over"];
+        if (fatalJoinErrors.indexOf(msg.error) >= 0) {
+            this.autoReconnect = false;
+            this.intent = null;
+            this.token = null;
+            if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+            this._reconnectTimer = null;
+            this.onDisconnect();
         }
-        if (!msg || typeof msg.t !== "string") return;
-        if (msg.t === "created") {
-            self.code = msg.code;
-            self.id = msg.id;
-            self.token = msg.token || self.token;
-            self.onCreated(msg);
-            self.onLobby(msg.players || []);
-        } else if (msg.t === "joined") {
-            self.code = msg.code;
-            self.id = msg.id;
-            self.token = msg.token || self.token;
-            self.onJoined(msg);
-            self.onLobby(msg.players || []);
-        } else if (msg.t === "rejoined") {
-            self.code = msg.code;
-            self.id = msg.id;
-            self.token = msg.token || self.token;
-            self.onJoined(msg);
-            self.onLobby(msg.players || []);
-        } else if (msg.t === "lobby") {
-            self.onLobby(msg.players || []);
-        } else if (msg.t === "peer") {
-            self.onPeer(msg);
-        } else if (msg.t === "left") {
-            self.onLeft(msg.id, msg.reason);
-        } else if (msg.t === "state") {
-            self.onState(msg);
-        } else if (msg.t === "countdown") {
-            self.onCountdown(msg);
-        } else if (msg.t === "lapUpdate") {
-            self.onLapUpdate(msg);
-        } else if (msg.t === "finish") {
-            self.onFinish(msg);
-        } else if (msg.t === "results") {
-            self.onResults(msg);
-        } else if (msg.t === "cancelled") {
-            self.onCancelled(msg);
-        } else if (msg.t === "leaderboard") {
-            self.onLeaderboard(msg);
-        } else if (msg.t === "pong") {
-            if (msg.ts != null) {
-                self.rtt = Date.now() - msg.ts;
+        this.onError(msg.error || "server-error");
+    }
+};
+
+NetClient.prototype._connect = function (openFn) {
+    const self = this;
+    let socket;
+    try {
+        this._manualClose = false;
+        socket = new WebSocket(this.url);
+        this.ws = socket;
+    } catch (e) {
+        this.onError("connect-failed");
+        if (this.autoReconnect && (this.token || this.intent)) this._scheduleReconnect();
+        else this.onDisconnect();
+        return;
+    }
+
+    socket.onopen = function () {
+        if (socket !== self.ws) return;
+        if (self._connectTimer) clearTimeout(self._connectTimer);
+        self._connectTimer = null;
+        self._handshakeTimer = setTimeout(function () {
+            if (socket === self.ws && !self.id) {
+                self.onError("server-timeout");
+                try { socket.close(); } catch (e) {}
             }
-            self.onPong && self.onPong(msg);
-        } else if (msg.t === "error") {
-            if (msg.error === "bad-token" || msg.error === "no-room") {
-                self.autoReconnect = false;
-                if (self._reconnectTimer) {
-                    clearTimeout(self._reconnectTimer);
-                    self._reconnectTimer = null;
-                }
-                self.onDisconnect();
-            }
-            self.onError(msg.error);
+        }, 15000);
+        self._lastPosAt = 0;
+        openFn();
+    };
+    socket.onmessage = function (ev) {
+        self._handleMessage(socket, ev);
+    };
+    socket.onerror = function () {
+        if (socket === self.ws && socket.readyState !== 1) {
+            self.onError("connect-failed");
         }
     };
-    this.ws.onclose = function () {
-        const wasManual = self._manualClose;
+    socket.onclose = function () {
+        if (socket !== self.ws) return;
+        self._clearTimers();
         self.ws = null;
         self.id = null;
-        if (wasManual) {
+        self.rtt = null;
+        if (self._manualClose) {
             self._manualClose = false;
             return;
         }
-        if (self.autoReconnect && self.token) {
+        if (self.autoReconnect && (self.token || self.intent)) {
             self._scheduleReconnect();
         } else {
             self.onDisconnect();
         }
     };
-};
 
-NetClient.prototype._connect = function (openFn) {
-    const self = this;
-    try {
-        this._manualClose = false;
-        this.ws = new WebSocket(this.url);
-    } catch (e) {
-        self.onError("connect-failed");
-        return;
-    }
-    this._attach();
-    this.ws.onopen = function () {
-        self._reconnectAttempts = 0;
-        self._reconnecting = false;
-        openFn();
-    };
-    this.ws.onerror = function () {
-        // onclose follows with onDisconnect; surface once
-        if (!self.ws || self.ws.readyState !== 1) {
-            self.onError("connect-failed");
+    this._connectTimer = setTimeout(function () {
+        if (socket === self.ws && socket.readyState === 0) {
+            self.onError("connection-timeout");
+            try { socket.close(); } catch (e) {}
         }
-    };
+    }, 12000);
 };
 
 NetClient.prototype.create = function (name) {
     const self = this;
-    this._connect(function () {
-        self._send({ t: "create", name: name || "Driver" });
-    });
+    this.intent = { t: "create", name: name || "Driver" };
+    this._connect(function () { self._send(self.intent); });
 };
 
 NetClient.prototype.join = function (code, name) {
     const self = this;
-    this._connect(function () {
-        self._send({ t: "join", code: code, name: name || "Driver" });
-    });
+    this.intent = { t: "join", code: String(code || "").trim().toUpperCase(), name: name || "Driver" };
+    this._connect(function () { self._send(self.intent); });
 };
 
 NetClient.prototype.rejoin = function (token) {
     const self = this;
-    this._connect(function () {
-        self._send({ t: "rejoin", token: token });
-    });
+    this.token = token;
+    this.intent = null;
+    this._connect(function () { self._send({ t: "rejoin", token: self.token }); });
+};
+
+NetClient.prototype._scheduleReconnect = function () {
+    const self = this;
+    if (self._reconnectTimer || !self.autoReconnect || (!self.token && !self.intent)) return;
+    self._reconnecting = true;
+    self.onReconnecting(self._reconnectAttempts);
+    const delay = Math.min(10000, 500 * Math.pow(2, Math.min(self._reconnectAttempts, 5)));
+    self._reconnectAttempts++;
+    self._reconnectTimer = setTimeout(function () {
+        self._reconnectTimer = null;
+        if (!self.autoReconnect || (!self.token && !self.intent)) return;
+        self._connect(function () {
+            if (self.token) self._send({ t: "rejoin", token: self.token });
+            else if (self.intent) self._send(self.intent);
+        });
+    }, delay);
 };
 
 NetClient.prototype.sendPos = function (x, z, yaw, speed, progress) {
-    const now = (
-        typeof performance !== "undefined" ? performance.now() : Date.now()
-    );
-    if (now - this._lastPosAt < 50) return; // 20 Hz
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    if (now - this._lastPosAt < 50) return false;
+    if (!this.ws || this.ws.readyState !== 1 || this.ws.bufferedAmount > 96 * 1024) return false;
     this._lastPosAt = now;
-    this.seq = (this.seq || 0) + 1;
-    this._send({
+    this.seq++;
+    return this._send({
         t: "pos",
         x: x,
         z: z,
@@ -203,69 +225,39 @@ NetClient.prototype.sendPos = function (x, z, yaw, speed, progress) {
         speed: speed,
         progress: Number.isFinite(progress) ? progress : null,
         seq: this.seq,
-        ts: Date.now(),
+        ts: Date.now()
     });
 };
 
-NetClient.prototype._scheduleReconnect = function () {
-    const self = this;
-    if (self._reconnectTimer) return;
-    self._reconnecting = true;
-    self.onReconnecting(self._reconnectAttempts);
-    const delay = Math.min(5000, 300 * Math.pow(2, self._reconnectAttempts));
-    self._reconnectAttempts++;
-    self._reconnectTimer = setTimeout(function () {
-        self._reconnectTimer = null;
-        if (!self.token) {
-            self.autoReconnect = false;
-            self.onDisconnect();
-            return;
-        }
-        self._connect(function () {
-            self._send({ t: "rejoin", token: self.token });
-        });
-    }, delay);
-};
-
 NetClient.prototype.leave = function () {
+    const socket = this.ws;
     this._manualClose = true;
-    if (this._reconnectTimer) {
-        clearTimeout(this._reconnectTimer);
-        this._reconnectTimer = null;
-    }
     this.autoReconnect = false;
-    this._send({ t: "leave" });
-    try {
-        if (this.ws) this.ws.close();
-    } catch (e) {}
-    this.ws = null;
+    this.intent = null;
+    this.token = null;
     this.id = null;
     this.code = null;
-    this.token = null;
+    this._clearTimers();
+    this._send({ t: "leave" });
+    this.ws = null;
+    if (socket) {
+        try { socket.close(1000, "left room"); } catch (e) {}
+    }
 };
 
 NetClient.prototype.sendReady = function (ready) {
-    this._send({ t: "ready", ready: ready === true });
+    return this._send({ t: "ready", ready: ready === true });
 };
-
 NetClient.prototype.sendConfig = function (track, laps) {
-    this._send({ t: "config", track: track, laps: laps });
+    return this._send({ t: "config", track: track, laps: laps });
 };
-
-NetClient.prototype.sendStart = function () {
-    this._send({ t: "start" });
+NetClient.prototype.sendStart = function () { return this._send({ t: "start" }); };
+NetClient.prototype.sendCancel = function () { return this._send({ t: "cancel" }); };
+NetClient.prototype.sendLap = function (lap, time) {
+    return this._send({ t: "lap", lap: lap, time: time });
 };
-
-NetClient.prototype.sendCancel = function () {
-    this._send({ t: "cancel" });
-};
-
-NetClient.prototype.sendLap = function (lap, t) {
-    this._send({ t: "lap", lap: lap, time: t });
-};
-
 NetClient.prototype.sendPing = function () {
-    this._send({ t: "ping", ts: Date.now(), seq: this.seq || 0 });
+    return this._send({ t: "ping", ts: Date.now(), seq: this.seq || 0 });
 };
 
 if (typeof module !== "undefined" && module.exports) {
