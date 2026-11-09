@@ -60,7 +60,17 @@
 
     const NetGame = {
         client: null,
-        url: "ws://localhost:8765",
+        url: (function () {
+            try {
+                const saved = localStorage.getItem("apexNetServer");
+                if (saved) return saved;
+                if (typeof location !== "undefined" &&
+                    (location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+                    return "ws://localhost:8765";
+                }
+            } catch (e) {}
+            return "";
+        })(),
         name: "Driver",
         connected: false,
         peers: {}, // peerId -> {name:true}
@@ -82,6 +92,17 @@
 
         bridge: function () {
             return G.ApexNet || null;
+        },
+
+        normalizeUrl: function (raw) {
+            let value = String(raw || "").trim();
+            if (/^https:\/\//i.test(value)) value = value.replace(/^https:/i, "wss:");
+            else if (/^http:\/\//i.test(value)) value = value.replace(/^http:/i, "ws:");
+            if (typeof location !== "undefined" && location.protocol === "https:" && /^ws:\/\//i.test(value)) {
+                value = value.replace(/^ws:/i, "wss:");
+            }
+            if (!/^wss?:\/\//i.test(value)) return "";
+            return value.replace(/\/+$/, "");
         },
 
         log: function (m) {
@@ -157,6 +178,13 @@
 
         connect: function (create, code) {
             const B = this.bridge();
+            const normalizedUrl = this.normalizeUrl(this.url);
+            if (!normalizedUrl) {
+                this.status("enter your Render WebSocket URL (wss://...)");
+                return;
+            }
+            this.url = normalizedUrl;
+            try { localStorage.setItem("apexNetServer", normalizedUrl); } catch (e) {}
             if (typeof NetClient === "undefined") {
                 this.status("net client missing");
                 return;
@@ -202,7 +230,10 @@
                     self.refreshRaceUI();
                 },
                 onPeer: function (p) {
-                    if (B) B.pose(p.id, p.x, p.z, p.yaw, p.speed, p.seq, p.ts);
+                    if (B) {
+                        B.pose(p.id, p.x, p.z, p.yaw, p.speed, p.seq, p.ts, p.progress, p.lap);
+                        if (p.finished) B.setSlotFinished(p.id, true, null, p.finishTime, false);
+                    }
                 },
                 onLeft: function () {
                     self.log("peer left");
@@ -216,7 +247,10 @@
                     self.status("disconnected");
                     self.log("disconnected");
                     self.clearCountdown();
-                    if (B) B.setActive(false);
+                    if (B) {
+                        B.setActive(false);
+                        B.releaseAll();
+                    }
                 },
                 onState: function (m) {
                     self.onRoomState(m, client.id);
@@ -233,7 +267,7 @@
                     self.renderStandings();
                 },
                 onFinish: function (m) {
-                    if (B) B.setSlotFinished(m.id, m.order, m.time);
+                    if (B) B.setSlotFinished(m.id, true, m.order, m.time, false);
                     self.sharedFinish[m.id] = {
                         order: m.order,
                         time: m.time,
@@ -377,7 +411,15 @@
             }
             this.isHost = !!selfId && m.hostId === selfId;
             if (m.leaderboard && Array.isArray(m.leaderboard)) {
-                this.leaderboard = m.leaderboard;
+                const incomingSeq = Number.isFinite(m.leaderboardSeq) ? m.leaderboardSeq : this.leaderboardSeq;
+                const incomingRace = Number.isFinite(m.raceId) ? m.raceId : this.leaderboardRaceId;
+                if (incomingRace > this.leaderboardRaceId) this.leaderboardSeq = 0;
+                if (incomingRace >= this.leaderboardRaceId && incomingSeq >= this.leaderboardSeq) {
+                    this.leaderboard = m.leaderboard;
+                    this.leaderboardSeq = incomingSeq;
+                    this.leaderboardRaceId = incomingRace;
+                    this.applyLeaderboard(m.leaderboard);
+                }
             }
             if (typeof document !== "undefined") {
                 const tr = document.getElementById("netTrack");
@@ -397,7 +439,22 @@
             if (Number.isFinite(m.seq) && m.seq <= this.leaderboardSeq) return;
             if (Number.isFinite(m.seq)) this.leaderboardSeq = m.seq;
             this.leaderboard = m.entries;
+            this.applyLeaderboard(m.entries);
             this.renderStandings(this.lastStateMsg);
+        },
+
+        applyLeaderboard: function (entries) {
+            const B = this.bridge();
+            if (!B || !Array.isArray(entries)) return;
+            for (let i = 0; i < entries.length; i++) {
+                const p = entries[i];
+                if (!p || !p.id) continue;
+                if (typeof B.setSlotProgress === "function") B.setSlotProgress(p.id, p.progress);
+                if (typeof B.setSlotLap === "function") B.setSlotLap(p.id, p.lap);
+                if (typeof B.setSlotFinished === "function") {
+                    B.setSlotFinished(p.id, p.finished === true, p.position || null, p.finishTime, p.dnf === true);
+                }
+            }
         },
 
         onCountdownMsg: function (m) {
@@ -660,9 +717,7 @@
             panel.innerHTML =
                 "<div style='letter-spacing:.1em;margin-bottom:6px'>APEX GP — ONLINE (beta)</div>" +
                 "<div style='display:flex;gap:4px;margin-bottom:4px'>" +
-                "<input id='netSrv' style='flex:1;min-width:0' value='" +
-                this.url +
-                "'>" +
+                "<input id='netSrv' style='flex:1;min-width:0' placeholder='wss://your-service.onrender.com'>" +
                 "<input id='netName' style='width:70px' maxlength='24' value='Driver'>" +
                 "</div>" +
                 "<div style='display:flex;gap:4px;margin-bottom:4px'>" +
@@ -692,6 +747,8 @@
                 "</div>" +
                 "<div style='color:#8a93a3;font-size:11px'>host sets track+laps, presses START RACE. Guests: match the track, wait — the race begins for everyone automatically. ✓ = server-confirmed.</div>";
             document.body.appendChild(panel);
+            const serverInput = document.getElementById("netSrv");
+            if (serverInput) serverInput.value = this.url || "";
             this.panel = panel;
             this.debugEnabled = false;
             try {
@@ -707,7 +764,8 @@
             }
             const self = this;
             const grab = function () {
-                self.url = document.getElementById("netSrv").value.trim();
+                self.url = self.normalizeUrl(document.getElementById("netSrv").value);
+                try { if (self.url) localStorage.setItem("apexNetServer", self.url); } catch (e) {}
                 self.name =
                     document.getElementById("netName").value.trim() ||
                     "Driver";
