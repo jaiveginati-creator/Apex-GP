@@ -466,6 +466,12 @@
             const B = this.bridge();
             this.roomState = "countdown";
             this.results = null;
+            if (this.localBot) {
+                this.localBot.lap = 0;
+                this.localBot.lastMainLap = 0;
+                (this.localBot.lapTimers || []).forEach(function (timer) { clearTimeout(timer); });
+                this.localBot.lapTimers = [];
+            }
             this.lastSentLap = 0;
             this.lastStateMsg = null;
             this.leaderboard = null;
@@ -778,6 +784,7 @@
                             : null;
                         state.client.sendPos(x, z, yaw, speed, progress);
                     }, 50);
+                    self.tickLocalTestBot();
                 },
                 onError: function (e) {
                     self.setLocalBotStatus("Bot error: " + e);
