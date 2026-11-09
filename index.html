@@ -24668,6 +24668,16 @@ function getAIRaceProgress(
         return 0;
     }
 
+    // Remote drivers carry server-validated progress. Their local AI
+    // track index is intentionally frozen, so never derive progress
+    // from that stale index.
+    if(
+        ai.isHumanNet&&
+        Number.isFinite(ai.netProgress)
+    ){
+        return Math.max(0,ai.netProgress);
+    }
+
     const lapProgress=
         getRelativeTrackProgress(
             ai.index,
@@ -24954,40 +24964,56 @@ function getRaceStandings(estimate=false){
                 ai
             );
 
+        const netDriver=ai.isHumanNet===true;
+        const netFinished=netDriver
+            ?ai.netFinished===true
+            :ai.finished;
+
         entry.lap=
-            Math.min(
-                ai.lap,
-                TOTAL_LAPS
-            );
+            netDriver
+                ?Math.min(
+                    Math.max((ai.netLap||0)+(netFinished?0:1),1),
+                    TOTAL_LAPS
+                )
+                :Math.min(
+                    ai.lap,
+                    TOTAL_LAPS
+                );
 
         entry.speed=
-            ai.speed;
+            netDriver
+                ?(ai.netSpeed||0)
+                :ai.speed;
 
         entry.bestLapTime=
             ai.bestLapTime;
 
         entry.finished=
-            ai.finished;
+            netFinished;
 
         entry.finishTime=
-            ai.finishTime;
+            netDriver
+                ?ai.netFinishTime
+                :ai.finishTime;
 
-        /* projection for cars still running
-           when the player takes the flag */
+        /* Remote classification is server-confirmed; do not
+           project it using this client's local AI pace model. */
         entry.estimated=
             estimate&&
-            !ai.finished;
+            !netFinished&&
+            !netDriver;
 
         entry.status=
             (
                 estimate&&
-                !ai.finished
+                !netFinished&&
+                !netDriver
             )
                 ?"EST"
                 :"FINISHED";
 
         entry.estimatedFinishTime=
-            estimate
+            estimate&&!netDriver
                 ?estimateAIFinishTime(ai)
                 :null;
 
@@ -43474,9 +43500,9 @@ function timingStateForName(
         if(
             ai.driverName===name
         ){
-            return timingFor(
-                ai
-            );
+            return ai.isHumanNet
+                ?null
+                :timingFor(ai);
         }
 
     }
@@ -47327,11 +47353,16 @@ function netClearSmoothing(ai){
     ai.netTZ=0;
     ai.netTYaw=0;
     ai.netSpeed=0;
+    ai.netProgress=0;
+    ai.netLap=0;
+    ai.netFinished=false;
+    ai.netFinishTime=null;
+    ai.netDnf=false;
     ai.netAt=0;
     ai.netSeq=0;
     ai.netServerTs=0;
     ai.netSnaps=[];
-    ai.netInterpDelay=100;
+    ai.netInterpDelay=75;
     ai.netJitter=0;
 }
 
@@ -47513,7 +47544,7 @@ function updateNetCar(dt,ai){
         for(const g of gaps) varSum+=(g-mean)*(g-mean);
         const jitter=Math.sqrt(varSum/Math.max(1,gaps.length));
         ai.netJitter=jitter;
-        ai.netInterpDelay=Math.min(200,Math.max(60, 80 + jitter*1.5));
+        ai.netInterpDelay=Math.min(120,Math.max(65, 65 + jitter*1.25));
     }
 
     const delay=ai.netInterpDelay||100;
@@ -47561,22 +47592,13 @@ function updateNetCar(dt,ai){
     const dx=ix-ai.mesh.position.x;
     const dz=iz-ai.mesh.position.z;
     const dist2=dx*dx+dz*dz;
-    if(dist2>3600){
-        ai.mesh.position.x=ix;
-        ai.mesh.position.z=iz;
-        ai.mesh.rotation.y=iyaw;
-    }else{
-        // Smooth toward interpolated target.
-        const k=1-Math.exp(-dt*12);
-        ai.mesh.position.x+=dx*k;
-        ai.mesh.position.z+=dz*k;
-        let dyaw=iyaw-ai.mesh.rotation.y;
-        while(dyaw>Math.PI) dyaw-=Math.PI*2;
-        while(dyaw<-Math.PI) dyaw+=Math.PI*2;
-        ai.mesh.rotation.y+=dyaw*Math.min(1,dt*12);
-    }
+    // The snapshot buffer already interpolates between server samples.
+    // A second exponential smoothing pass adds visible trailing delay.
+    ai.mesh.position.x=ix;
+    ai.mesh.position.z=iz;
+    ai.mesh.rotation.y=iyaw;
 
-    ai.speed+=(ispeed-ai.speed)*Math.min(1,dt*6);
+    ai.speed=ispeed;
     ai.targetSpeed=ai.speed;
     ai.netTX=ix;
     ai.netTZ=iz;
@@ -47634,7 +47656,7 @@ window.ApexNet={
     slotCount:function(){
         return aiCars.length;
     },
-    pose:function(peerId,x,z,yaw,speed,seq,ts){
+    pose:function(peerId,x,z,yaw,speed,seq,ts,progress,lap){
         for(
             let i=0;
             i<aiCars.length;
@@ -47663,6 +47685,8 @@ window.ApexNet={
                     slot.netHas=true;
                     slot.netAt=performance.now();
                     slot.netServerTs=Number.isFinite(ts)?ts:Date.now();
+                    if(Number.isFinite(progress)) slot.netProgress=Math.max(0,progress);
+                    if(Number.isFinite(lap)) slot.netLap=Math.max(0,Math.floor(lap));
                     if(!Array.isArray(slot.netSnaps)) slot.netSnaps=[];
                     slot.netSnaps.push({recvAt:performance.now(),x:slot.netTX,z:slot.netTZ,yaw:slot.netTYaw,speed:slot.netSpeed,seq:Number.isFinite(seq)?seq:slot.netSeq});
                     while(slot.netSnaps.length>30) slot.netSnaps.shift();
@@ -47797,33 +47821,45 @@ window.ApexNet={
     },
     /* server-accepted lap for a remote slot: display +
        progression only, never local finish logic */
+    setSlotProgress:function(peerId,progress){
+        if(!Number.isFinite(progress)||progress<0)return;
+        for(let i=0;i<aiCars.length;i++){
+            const slot=aiCars[i];
+            if(slot&&slot.netPeerId===peerId){
+                slot.netProgress=progress;
+                return;
+            }
+        }
+    },
     setSlotLap:function(peerId,lap){
         lap=Math.floor(Number(lap))||0;
-        if(lap<0){
-            return;
-        }
-        for(
-            let i=0;
-            i<aiCars.length;
-            i++
-        ){
+        if(lap<0)return;
+        for(let i=0;i<aiCars.length;i++){
             const slot=aiCars[i];
-            if(
-                slot&&
-                slot.netPeerId===peerId
-            ){
-                slot.lap=lap;
+            if(slot&&slot.netPeerId===peerId){
+                slot.netLap=lap;
                 NETPLAY.sharedLaps[peerId]=lap;
                 return;
             }
         }
     },
-    /* server-confirmed finish, display only: the local
-       finish state machine is never driven remotely */
-    setSlotFinished:function(peerId,order,time){
+    /* Server-confirmed finish state is display-only; local AI
+       physics and finish logic remain untouched. */
+    setSlotFinished:function(peerId,finished,order,time,dnf){
+        for(let i=0;i<aiCars.length;i++){
+            const slot=aiCars[i];
+            if(slot&&slot.netPeerId===peerId){
+                slot.netFinished=finished===true;
+                slot.netFinishTime=Number.isFinite(time)?time:null;
+                slot.netDnf=dnf===true;
+                break;
+            }
+        }
         NETPLAY.sharedFinish[peerId]={
+            finished:finished===true,
             order:order,
-            time:time
+            time:Number.isFinite(time)?time:null,
+            dnf:dnf===true
         };
     },
     setResults:function(results){
