@@ -34405,8 +34405,11 @@ function setActiveTrack(id){
     if(
         next===activeTrackId&&
         (
-            (next==="spa")===
-            spaWorld.visible
+            next==="spa"
+                ?spaWorld.visible
+                :next==="monza"
+                    ?monzaWorld.visible
+                    :jeddahWorld.visible
         )
     ){
         return false;
