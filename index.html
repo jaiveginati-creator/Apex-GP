@@ -28752,7 +28752,7 @@ const pitLaneStartPathIndex=
         getTrackSample(PIT_LANE_START).p.clone()
             .addScaledVector(
                 getTrackSample(PIT_LANE_START).normal,
-                PIT_SIDE*PIT_SIDE*PIT_LANE_PATH_LATERAL
+                PIT_SIDE*PIT_LANE_PATH_LATERAL
             ),
         null
     );
@@ -31466,7 +31466,7 @@ function buildSpaPit(){
     spaWorld.add(
         buildPitStrip(
             row=>pitInnerEdge(row),
-            row=>pitInnerEdge(row)+.3,
+            row=>pitInnerEdge(row)+PIT_SIDE*.3,
             .045,
             pitLineMaterial
         )
@@ -31474,7 +31474,7 @@ function buildSpaPit(){
 
     spaWorld.add(
         buildPitStrip(
-            row=>pitOuterEdge(row)-.3,
+            row=>pitOuterEdge(row)-PIT_SIDE*.3,
             row=>pitOuterEdge(row),
             .045,
             pitLineMaterial
