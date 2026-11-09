@@ -39,6 +39,7 @@ function NetClient(opts) {
     this._reconnecting = false;
     this._manualClose = false;
     this._lastPosAt = 0;
+    this._pendingReliable = [];
 }
 
 NetClient.prototype._clearTimers = function () {
@@ -60,6 +61,23 @@ NetClient.prototype._send = function (msg) {
         return true;
     } catch (e) {
         return false;
+    }
+};
+
+NetClient.prototype._sendReliable = function (msg) {
+    if (this._send(msg)) return true;
+    // Lap crossings are events, not replaceable snapshots. Keep a small
+    // ordered queue so a brief reconnect cannot silently lose a lap.
+    if (msg.t === "lap" && this._pendingReliable.length < 32) {
+        this._pendingReliable.push(msg);
+    }
+    return false;
+};
+
+NetClient.prototype._flushReliable = function () {
+    while (this._pendingReliable.length) {
+        if (!this._send(this._pendingReliable[0])) return;
+        this._pendingReliable.shift();
     }
 };
 
@@ -85,6 +103,7 @@ NetClient.prototype._handleMessage = function (socket, ev) {
         if (msg.t === "created") this.onCreated(msg);
         else this.onJoined(msg);
         this.onLobby(msg.players || []);
+        this._flushReliable();
         return;
     }
 
@@ -177,12 +196,14 @@ NetClient.prototype._connect = function (openFn) {
 
 NetClient.prototype.create = function (name) {
     const self = this;
+    this._pendingReliable.length = 0;
     this.intent = { t: "create", name: name || "Driver" };
     this._connect(function () { self._send(self.intent); });
 };
 
 NetClient.prototype.join = function (code, name) {
     const self = this;
+    this._pendingReliable.length = 0;
     this.intent = { t: "join", code: String(code || "").trim().toUpperCase(), name: name || "Driver" };
     this._connect(function () { self._send(self.intent); });
 };
@@ -236,6 +257,7 @@ NetClient.prototype.leave = function () {
     this.intent = null;
     this.token = null;
     this.id = null;
+    this._pendingReliable.length = 0;
     this.code = null;
     this._clearTimers();
     this._send({ t: "leave" });
@@ -254,7 +276,7 @@ NetClient.prototype.sendConfig = function (track, laps) {
 NetClient.prototype.sendStart = function () { return this._send({ t: "start" }); };
 NetClient.prototype.sendCancel = function () { return this._send({ t: "cancel" }); };
 NetClient.prototype.sendLap = function (lap, time) {
-    return this._send({ t: "lap", lap: lap, time: time });
+    return this._sendReliable({ t: "lap", lap: lap, time: time });
 };
 NetClient.prototype.sendPing = function () {
     return this._send({ t: "ping", ts: Date.now(), seq: this.seq || 0 });
