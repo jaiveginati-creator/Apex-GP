@@ -25814,7 +25814,11 @@ let activeTrackId="jeddah";
 
 
 function trackPointsFor(id){
-    return id==="spa"?spaPoints:id==="monza"?monzaPoints:rawPoints;
+    return id==="spa"
+        ?spaPoints
+        :id==="monza"
+            ?monzaPoints.map(p=>[p[0]*.913,p[1],p[2]*.913])
+            :rawPoints;
 }
 
 
