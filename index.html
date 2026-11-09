@@ -28390,7 +28390,7 @@ AI_PIT_BOX_INDICES.forEach(
             pos:d.p.clone()
                 .addScaledVector(
                     d.normal,
-                    PIT_BOX_LATERAL
+                    PIT_SIDE*PIT_BOX_LATERAL
                 )
         });
     }
@@ -28581,7 +28581,7 @@ buildPitStrip(
 
 buildPitStrip(
     row=>pitOuterEdge(row)-PIT_SIDE*.3,
-    row=>row.lateral+PIT_OUTER_HALF,
+    row=>pitOuterEdge(row),
     .045,
     pitLineMaterial
 );
@@ -28752,7 +28752,7 @@ const pitLaneStartPathIndex=
         getTrackSample(PIT_LANE_START).p.clone()
             .addScaledVector(
                 getTrackSample(PIT_LANE_START).normal,
-                PIT_SIDE*PIT_LANE_PATH_LATERAL
+                PIT_SIDE*PIT_SIDE*PIT_LANE_PATH_LATERAL
             ),
         null
     );
@@ -28762,7 +28762,7 @@ const pitLaneEndPathIndex=
         getTrackSample(PIT_LIMIT_END).p.clone()
             .addScaledVector(
                 getTrackSample(PIT_LIMIT_END).normal,
-                PIT_LANE_PATH_LATERAL
+                PIT_SIDE*PIT_LANE_PATH_LATERAL
             ),
         null
     );
@@ -29608,7 +29608,7 @@ for(
         sample.p.clone()
             .addScaledVector(
                 sample.normal,
-                row.lateral-PIT_INNER_HALF
+                pitInnerEdge(row)
             );
 
     const segmentLength=
@@ -31456,8 +31456,8 @@ function buildSpaPit(){
        the active pit path, reparented to Spa */
     spaWorld.add(
         buildPitStrip(
-            row=>row.lateral-PIT_INNER_HALF,
-            row=>row.lateral+PIT_OUTER_HALF,
+            row=>pitInnerEdge(row),
+            row=>pitOuterEdge(row),
             .02,
             pitAsphaltMaterial
         )
@@ -31465,8 +31465,8 @@ function buildSpaPit(){
 
     spaWorld.add(
         buildPitStrip(
-            row=>row.lateral-PIT_INNER_HALF,
-            row=>row.lateral-PIT_INNER_HALF+.3,
+            row=>pitInnerEdge(row),
+            row=>pitInnerEdge(row)+.3,
             .045,
             pitLineMaterial
         )
@@ -31474,8 +31474,8 @@ function buildSpaPit(){
 
     spaWorld.add(
         buildPitStrip(
-            row=>row.lateral+PIT_OUTER_HALF-.3,
-            row=>row.lateral+PIT_OUTER_HALF,
+            row=>pitOuterEdge(row)-.3,
+            row=>pitOuterEdge(row),
             .045,
             pitLineMaterial
         )
@@ -31483,8 +31483,8 @@ function buildSpaPit(){
 
     spaWorld.add(
         buildPitStrip(
-            row=>row.lateral+4.6,
-            row=>row.lateral+4.9,
+            row=>row.lateral+PIT_SIDE*4.6,
+            row=>row.lateral+PIT_SIDE*4.9,
             .045,
             pitDashMaterial,
             row=>Math.floor(row.s/5)%2===0
@@ -31558,7 +31558,7 @@ function buildSpaPit(){
         _spaObj.position.copy(sample.p)
             .addScaledVector(
                 sample.normal,
-                row.lateral-PIT_INNER_HALF
+                pitInnerEdge(row)
             );
 
         _spaObj.position.y=sample.p.y+.42;
@@ -35708,19 +35708,19 @@ function loadMonzaWorld(){
        PIT LANE — actual shared pit-path geometry and boxes.
        ----------------------------------------------------- */
     monzaWorld.add(buildPitStrip(
-        row=>row.lateral-PIT_INNER_HALF,
-        row=>row.lateral+PIT_OUTER_HALF,.025,pitAsphaltMaterial
+        row=>pitInnerEdge(row),
+        row=>pitOuterEdge(row),.025,pitAsphaltMaterial
     ));
     monzaWorld.add(buildPitStrip(
-        row=>row.lateral-PIT_INNER_HALF,
+        row=>pitInnerEdge(row),
         row=>pitInnerEdge(row)+PIT_SIDE*.32,.05,pitLineMaterial
     ));
     monzaWorld.add(buildPitStrip(
         row=>pitOuterEdge(row)-PIT_SIDE*.32,
-        row=>row.lateral+PIT_OUTER_HALF,.05,pitLineMaterial
+        row=>pitOuterEdge(row),.05,pitLineMaterial
     ));
     monzaWorld.add(buildPitStrip(
-        row=>row.lateral+4.6,row=>row.lateral+4.9,.05,pitDashMaterial,
+        row=>row.lateral+PIT_SIDE*4.6,row=>row.lateral+PIT_SIDE*4.9,.05,pitDashMaterial,
         row=>Math.floor(row.s/5)%2===0
     ));
     monzaWorld.add(createPitCrossLine(PIT_LANE_START,pitYellowMaterial,.8));
