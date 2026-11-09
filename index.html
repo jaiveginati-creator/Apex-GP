@@ -34391,6 +34391,51 @@ function loadMonzaWorld(){
     );
     monzaRoad.receiveShadow=true;
     monzaWorld.add(monzaRoad);
+
+    /* Continuous white edge lines and painted start-grid
+       boxes make the circuit read as a finished GP venue. */
+    const edgeLineMat=new THREE.MeshStandardMaterial({
+        color:0xe7e8e4,roughness:.78,metalness:0
+    });
+    const edgeLines=new THREE.InstancedMesh(
+        new THREE.BoxGeometry(.22,.045,METERS_PER_SAMPLE*2.35),
+        edgeLineMat,Math.ceil(TRACK_SAMPLES/2)*2
+    );
+    const lineObj=new THREE.Object3D();
+    let edgeCount=0;
+    for(let i=0;i<TRACK_SAMPLES;i+=2){
+        const d=getTrackSample(i);
+        for(const side of [-1,1]){
+            lineObj.position.copy(d.p).addScaledVector(
+                d.normal,side*(TRACK_HALF_WIDTH-.28)
+            );
+            lineObj.position.y=d.p.y+.045;
+            lineObj.rotation.set(0,getTrackTangentAngle(d),0);
+            pitchToGrade(lineObj,i);lineObj.updateMatrix();
+            edgeLines.setMatrixAt(edgeCount++,lineObj.matrix);
+        }
+    }
+    edgeLines.count=edgeCount;
+    edgeLines.instanceMatrix.needsUpdate=true;
+    monzaWorld.add(edgeLines);
+
+    /* Grid slots are painted onto the start straight. */
+    const gridPaint=new THREE.MeshBasicMaterial({
+        color:0xe8e9e5,transparent:true,opacity:.88,side:THREE.DoubleSide
+    });
+    for(let row=0;row<10;row++){
+        const idx=wrapTrackIndex(4+row*7);
+        const d=getTrackSample(idx);
+        for(const side of [-1,1]){
+            const mark=new THREE.Mesh(new THREE.PlaneGeometry(7.5,11),gridPaint);
+            mark.rotation.x=-Math.PI/2;
+            mark.rotation.z=-getTrackTangentAngle(d);
+            mark.position.copy(d.p).addScaledVector(d.normal,side*10);
+            mark.position.y=d.p.y+.065;
+            monzaWorld.add(mark);
+        }
+    }
+
     const runoff=createRibbon(
         TRACK_HALF_WIDTH+KERB_WIDTH+RUNOFF_WIDTH,-.018,runoffMaterial,12
     );
@@ -34664,6 +34709,14 @@ function loadMonzaWorld(){
             const tx=x+jx,tz=z+jz;
             if(distanceToTrackXZ(tx,tz)<105)continue;
             if(Math.abs(tx-centerX)<125&&Math.abs(tz-centerZ)<105)continue;
+            let overlapsStructure=false;
+            for(const fp of sceneryFootprints){
+                const dx=tx-fp.x,dz=tz-fp.z;
+                if(dx*dx+dz*dz<(fp.radius+16)*(fp.radius+16)){
+                    overlapsStructure=true;break;
+                }
+            }
+            if(overlapsStructure)continue;
             const h=spaTerrainHeightAt(tx,tz);
             const scale=.72+(seed%1)*.78;
             treeObj.position.set(tx,h+5*scale,tz);
