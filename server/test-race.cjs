@@ -85,6 +85,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                 HOST: "127.0.0.1",
                 COUNTDOWN_MS: "400",
                 MIN_LAP_MS: "300",
+                RECONNECT_GRACE_MS: "150",
             },
             stdio: ["ignore", "pipe", "pipe"],
         }
