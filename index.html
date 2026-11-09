@@ -24991,6 +24991,9 @@ function getRaceStandings(estimate=false){
         entry.finished=
             netFinished;
 
+        entry.dnf=
+            netDriver&&ai.netDnf===true;
+
         entry.finishTime=
             netDriver
                 ?ai.netFinishTime
@@ -25036,6 +25039,10 @@ function getRaceStandings(estimate=false){
                 return a.finished
                     ?-1
                     :1;
+            }
+
+            if(a.dnf!==b.dnf){
+                return a.dnf?1:-1;
             }
 
             /*
@@ -43560,7 +43567,7 @@ function updateTowerBroadcast(){
             row.className=
                 cls+" player";
         }else if(
-            entry.finished
+            entry.finished||entry.dnf
         ){
             row.className=
                 cls+" finished";
@@ -43649,10 +43656,12 @@ function updateTowerBroadcast(){
 
         /* lap */
         const lapText=
-            entry.finished
-                ?"FIN"
-                :"L"+
-                    entry.lap;
+            entry.dnf
+                ?"DNF"
+                :entry.finished
+                    ?"FIN"
+                    :"L"+
+                        entry.lap;
 
         if(
             state.lastLap!==lapText
