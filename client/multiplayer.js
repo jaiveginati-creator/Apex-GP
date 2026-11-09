@@ -81,6 +81,15 @@ NetClient.prototype._flushReliable = function () {
     }
 };
 
+NetClient.prototype._attach = function (socket) {
+    const target = socket || this.ws;
+    if (!target) return;
+    const self = this;
+    target.onmessage = function (ev) {
+        self._handleMessage(target, ev);
+    };
+};
+
 NetClient.prototype._handleMessage = function (socket, ev) {
     if (socket !== this.ws) return;
     let msg;
@@ -161,9 +170,7 @@ NetClient.prototype._connect = function (openFn) {
         self._lastPosAt = 0;
         openFn();
     };
-    socket.onmessage = function (ev) {
-        self._handleMessage(socket, ev);
-    };
+    self._attach(socket);
     socket.onerror = function () {
         if (socket === self.ws && socket.readyState !== 1) {
             self.onError("connect-failed");
