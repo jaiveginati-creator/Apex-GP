@@ -17341,12 +17341,9 @@ function updatePhysics(dt){
                 Math.random()-.5
             )*.006*bump;
 
-        /* and a small grip penalty */
-        physics.speed*=
-            Math.pow(
-                1-.22*bump,
-                dt*60
-            );
+        /* Kerbs are fully driveable: keep the visual bump and
+           camera/audio feedback, but do not take speed or grip
+           away just for crossing the red-and-white paint. */
 
         kerbRoughness=bump;
     }
@@ -17371,7 +17368,7 @@ function updatePhysics(dt){
     */
     if(
         !playerPit.inPit&&
-        lateralDistance>TRACK_HALF_WIDTH
+        lateralDistance>TRACK_HALF_WIDTH+KERB_WIDTH
     ){
 
         const runoffSpan=
@@ -17384,20 +17381,17 @@ function updatePhysics(dt){
             THREE.MathUtils.clamp(
                 (
                     lateralDistance-
-                    TRACK_HALF_WIDTH
+                    TRACK_HALF_WIDTH-
+                    KERB_WIDTH
                 )/runoffSpan,
                 0,
                 1
             );
 
-        /* genuine rolling resistance on the runoff:
-           progressive with distance, never a wall of
-           drag. Real slowdown on grass comes from the
-           tyre grip loss above, not from this term. */
-        const drag=
-            onKerb
-                ?.008
-                :.0015+.002*offTrack;
+        /* Kerbs are not runoff: crossing the painted strip
+           carries no artificial rolling drag. Resistance
+           begins only after the car clears the kerb. */
+        const drag=.0015+.002*offTrack;
 
         physics.speed*=
             Math.pow(
