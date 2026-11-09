@@ -91,6 +91,7 @@ function httpGet(path) {
             send(w, { t: "join", code: code1, name: "R1P" + i });
             const jm = await waitFor(w, (m) => m.t === "joined");
             w._token = jm.token;
+            w._id = jm.id;
             await waitFor(w, (m) => m.t === "state");
             room1Clients.push(w);
         }
@@ -149,34 +150,36 @@ function httpGet(path) {
         await waitFor(room1Clients[1], (m) => m.t === "countdown");
         await waitFor(room1Clients[1], (m) => m.t === "state" && m.state === "racing");
         const guest = room1Clients[1];
+        const awayPromise = waitFor(room1Host, (m) =>
+            m.t === "lobby" &&
+            m.players.some((p) => p.id === guest._id && p.connected === false)
+        );
         guest.close();
-        await waitFor(room1Host, (m) => m.t === "left");
-        // reconnect with token
+        await awayPromise;
+
+        // Rejoin before the grace window expires: identity and room stay the same.
         const rw = await connect();
         send(rw, { t: "rejoin", token: guest._token });
-        // token for guest? We didn't store; use room host token? Need stored token. We'll instead rejoin by original token if available.
-        // Since guest token not stored in this test, expect bad-token OR joined; accept either but prefer joined.
-        let rejoinMsg;
-        try { rejoinMsg = await waitFor(rw, (m) => m.t === "rejoined" || m.t === "joined" || m.t === "error", 2000); } catch (e) { rejoinMsg = null; }
-        // If bad-token, fall back to normal join to keep room usable.
-        if (!rejoinMsg || rejoinMsg.t === "error") {
-            send(rw, { t: "join", code: code1, name: "Rejoined" });
-            await waitFor(rw, (m) => m.t === "joined" || m.t === "error");
-        }
-        await sleep(200);
-        // send pos from reconnected client
-        try { send(rw, { t: "pos", x: 10, z: 10, yaw: 0, speed: 5, seq: 1, ts: Date.now() }); } catch {}
-        // host should receive a peer update (possibly from other clients too)
+        const rejoinMsg = await waitFor(rw, (m) => m.t === "rejoined");
+        assert.equal(rejoinMsg.id, guest._id);
+        await waitFor(rw, (m) => m.t === "state");
+        allClients.push(rw);
+
         let gotPeer = false;
         const onPeer = (d) => { try { const m = JSON.parse(String(d)); if (m.t === "peer") gotPeer = true; } catch {} };
         room1Host.on("message", onPeer);
-        await sleep(500);
+        send(rw, { t: "pos", x: 10, z: 10, yaw: 0, speed: 5, seq: 101, ts: Date.now() });
+        await sleep(250);
         room1Host.removeListener("message", onPeer);
-        assert.ok(true, "reconnect path exercised");
-        console.log("ok stress: reconnect path exercised, gotPeer=" + gotPeer);
-        rw.close();
+        assert.ok(gotPeer, "reconnected player position was not relayed");
+        console.log("ok stress: reconnect restored identity and movement");
 
         // --- Test 4: join/leave during active race ---
+        // Expire another player's grace window to free one live slot.
+        const departing = room1Clients[2];
+        const departedPromise = waitFor(room1Host, (m) => m.t === "left" && m.id === departing._id);
+        departing.close();
+        await departedPromise;
         const late = await connect();
         send(late, { t: "join", code: code1, name: "Late" });
         const lateJoin = await waitFor(late, (m) => m.t === "joined" || m.t === "error");
