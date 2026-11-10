@@ -65,11 +65,12 @@
                 const saved = localStorage.getItem("apexNetServer");
                 if (saved) return saved;
                 if (typeof location !== "undefined" &&
-                    (location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+                    (location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname === "::1")) {
                     return "ws://localhost:8765";
                 }
             } catch (e) {}
-            return "";
+            // Production default: prefill the NET menu on every hosted build.
+            return "wss://apex-gp-p5aj.onrender.com";
         })(),
         name: "Driver",
         connected: false,
