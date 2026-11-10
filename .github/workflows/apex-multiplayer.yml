@@ -2,7 +2,7 @@ name: Apex GP multiplayer checks
 
 on:
   push:
-    branches: [main, multiplayer-overhaul, trees/monza-roadside-density, ai/corner-speed-intelligence, tracks/monaco-circuit-and-city]
+    branches: [main, multiplayer-overhaul, trees/monza-roadside-density, ai/corner-speed-intelligence, tracks/monaco-circuit-and-city, tracks/monaco-accurate-layout]
   pull_request:
     branches: [main]
 
