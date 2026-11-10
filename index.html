@@ -26992,8 +26992,8 @@ function setActiveTrackData(id){
     PIT_SIDE=isMonza?-1:1;
     /* Monza's pit lane must sit outside the widened racing
        surface. Keep the entry/exit tapers just beyond the edge. */
-    PIT_LANE_PATH_LATERAL=isMonza?49:DEFAULT_PIT_LANE_PATH_LATERAL;
-    PIT_BOX_LATERAL=isMonza?55.5:DEFAULT_PIT_BOX_LATERAL;
+    PIT_LANE_PATH_LATERAL=isMonza?35:DEFAULT_PIT_LANE_PATH_LATERAL;
+    PIT_BOX_LATERAL=isMonza?41.5:DEFAULT_PIT_BOX_LATERAL;
     PIT_ENTRY_LATERAL=isMonza?23:DEFAULT_PIT_ENTRY_LATERAL;
     PIT_EXIT_LATERAL=isMonza?23:DEFAULT_PIT_EXIT_LATERAL;
 
@@ -35994,17 +35994,27 @@ function loadMonzaWorld(){
        vegetation density is not biased toward one edge.
        ----------------------------------------------------- */
     const TREE_CAP=6000;
-    const trunkGeo=new THREE.CylinderGeometry(.34,.82,10,9);
-    const trunkMat=new THREE.MeshStandardMaterial({color:0x6a4a32,roughness:1});
+    const trunkGeo=new THREE.CylinderGeometry(.28,.9,11,12,2);
+    const trunkMat=new THREE.MeshStandardMaterial({color:0x59402c,roughness:1});
     const trunks=new THREE.InstancedMesh(trunkGeo,trunkMat,TREE_CAP);
     const treeKinds=[
-        {geo:new THREE.SphereGeometry(6.8,10,8),mat:new THREE.MeshStandardMaterial({color:0x466b39,roughness:1})},
-        {geo:new THREE.IcosahedronGeometry(7.2,2),mat:new THREE.MeshStandardMaterial({color:0x365f32,roughness:1})},
-        {geo:new THREE.ConeGeometry(6.1,15,9,2),mat:new THREE.MeshStandardMaterial({color:0x315a35,roughness:1})},
-        {geo:new THREE.SphereGeometry(7.8,9,7),mat:new THREE.MeshStandardMaterial({color:0x587842,roughness:1})}
+        {geo:new THREE.SphereGeometry(7.2,16,12),mat:new THREE.MeshStandardMaterial({color:0x355d31,roughness:1})},
+        {geo:new THREE.IcosahedronGeometry(7.5,2),mat:new THREE.MeshStandardMaterial({color:0x294f2b,roughness:1})},
+        {geo:new THREE.ConeGeometry(6.3,16,12,3),mat:new THREE.MeshStandardMaterial({color:0x315b35,roughness:1})},
+        {geo:new THREE.SphereGeometry(8.1,14,11),mat:new THREE.MeshStandardMaterial({color:0x527442,roughness:1})}
     ];
     const treeCrowns=treeKinds.map(k=>new THREE.InstancedMesh(k.geo,k.mat,TREE_CAP));
     const treeCrownLayers=treeKinds.map(k=>new THREE.InstancedMesh(k.geo,k.mat,TREE_CAP));
+    /* Branches and smaller leaf masses break up the old lollipop silhouettes. */
+    const branchGeo=new THREE.CylinderGeometry(.12,.3,5.8,7,1);
+    const branchMat=new THREE.MeshStandardMaterial({color:0x60432e,roughness:1});
+    const branches=new THREE.InstancedMesh(branchGeo,branchMat,TREE_CAP*3);
+    const leafClumpGeo=new THREE.SphereGeometry(4.15,10,8);
+    const leafClumpMat=new THREE.MeshStandardMaterial({color:0x3d6937,roughness:1});
+    const leafClumps=new THREE.InstancedMesh(leafClumpGeo,leafClumpMat,TREE_CAP*3);
+    const branchObj=new THREE.Object3D();
+    const leafObj=new THREE.Object3D();
+    let branchCount=0,leafClumpCount=0;
     const treeObj=new THREE.Object3D();
     const forestGroundY=(x,z)=>-1.15+Math.sin(x*.002+z*.001)*.22;
     let treeCount=0;
@@ -36057,6 +36067,48 @@ function loadMonzaWorld(){
         treeObj.updateMatrix();
         treeCrownLayers[kind].setMatrixAt(kindIndex,treeObj.matrix);
         treeCrownLayers[kind].setColorAt(kindIndex,new THREE.Color().setHSL(.27+seed*.045,.36,.25+seed*.12));
+        /* Three angled limbs per tree, tucked beneath the foliage. */
+        for(let limb=0;limb<3;limb++){
+            const angle=seed*Math.PI*2+limb*Math.PI*2/3;
+            branchObj.position.set(
+                tx+Math.cos(angle)*1.35*scale,
+                h+(6.2+getTrackNoise(key,1221+limb)*1.2)*scale,
+                tz+Math.sin(angle)*1.35*scale
+            );
+            branchObj.rotation.set(
+                Math.sin(angle)*.48,
+                -angle,
+                Math.cos(angle)*.48
+            );
+            branchObj.scale.setScalar(.72*scale);
+            branchObj.updateMatrix();
+            branches.setMatrixAt(branchCount,branchObj.matrix);
+            branchCount++;
+            /* Offset canopy lobes create a less uniform, fuller crown. */
+            leafObj.position.set(
+                tx+Math.cos(angle)*4.1*scale,
+                h+(10.1+getTrackNoise(key,1231+limb)*2.2)*scale,
+                tz+Math.sin(angle)*4.1*scale
+            );
+            leafObj.rotation.set(
+                getTrackNoise(key,1241+limb)*.5,
+                angle,
+                getTrackNoise(key,1251+limb)*.5
+            );
+            leafObj.scale.set(
+                (.78+getTrackNoise(key,1261+limb)*.32)*scale,
+                (.72+getTrackNoise(key,1271+limb)*.35)*scale,
+                (.78+getTrackNoise(key,1281+limb)*.32)*scale
+            );
+            leafObj.updateMatrix();
+            leafClumps.setMatrixAt(leafClumpCount,leafObj.matrix);
+            leafClumps.setColorAt(leafClumpCount,new THREE.Color().setHSL(
+                .265+getTrackNoise(key,1291+limb)*.075,
+                .34,
+                .19+getTrackNoise(key,1301+limb)*.15
+            ));
+            leafClumpCount++;
+        }
         treeCount++;
     }
     trunks.count=treeCount;
@@ -36064,6 +36116,13 @@ function loadMonzaWorld(){
     if(trunks.instanceColor)trunks.instanceColor.needsUpdate=true;
     trunks.castShadow=true;
     monzaWorld.add(trunks);
+    branches.count=branchCount;
+    branches.instanceMatrix.needsUpdate=true;
+    branches.castShadow=true;
+    leafClumps.count=leafClumpCount;
+    leafClumps.instanceMatrix.needsUpdate=true;
+    if(leafClumps.instanceColor)leafClumps.instanceColor.needsUpdate=true;
+    monzaWorld.add(branches,leafClumps);
     for(let k=0;k<treeKinds.length;k++){
         treeCrowns[k].count=treeKindCounts[k];
         treeCrownLayers[k].count=treeKindCounts[k];
