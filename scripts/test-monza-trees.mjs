@@ -18,19 +18,19 @@ for (const mass of expectedCanopyMasses) {
   assert.equal(html.split(mass).length - 1, 1, `Missing or duplicated canopy mass: ${mass}`);
 }
 
-const scriptTags = [...html.matchAll(/<script\\b([^>]*)>([\\s\\S]*?)<\\/script\\s*>/gi)];
+const scriptTags = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)];
 let checked = 0;
 for (const match of scriptTags) {
   const attrs = match[1];
   const body = match[2];
-  const type = (attrs.match(/\\btype\\s*=\\s*["']([^"']+)["']/i) || [])[1]?.toLowerCase();
-  if (/\\bsrc\\s*=/.test(attrs) || !body.trim()) continue;
+  const type = (attrs.match(/\btype\s*=\s*["']([^"']+)["']/i) || [])[1]?.toLowerCase();
+  if (/\bsrc\s*=/.test(attrs) || !body.trim()) continue;
   if (type && !["module", "text/javascript", "application/javascript"].includes(type)) continue;
   const result = spawnSync(process.execPath, ["--check", "--input-type=module"], {
     input: body,
     encoding: "utf8"
   });
-  assert.equal(result.status, 0, `Inline script syntax check failed:\\n${result.stderr || result.stdout}`);
+  assert.equal(result.status, 0, `Inline script syntax check failed:\n${result.stderr || result.stdout}`);
   checked++;
 }
 assert.ok(checked > 0, "No inline JavaScript was checked");
