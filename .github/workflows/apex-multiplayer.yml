@@ -23,6 +23,8 @@ jobs:
         run: node --check client/netgame.js && node --check client/multiplayer.js
       - name: Check Monza tree geometry and inline JavaScript
         run: node scripts/test-monza-trees.mjs
+      - name: Check AI corner speed planning
+        run: node scripts/test-ai-corner-planning.mjs
       - name: Run multiplayer test suite
         working-directory: server
         run: npm test
