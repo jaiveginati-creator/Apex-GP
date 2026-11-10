@@ -4299,7 +4299,7 @@ let TRACK_HALF_WIDTH=DEFAULT_TRACK_HALF_WIDTH;
 const MONZA_TRACK_HALF_WIDTH=22;
 const MONACO_TRACK_HALF_WIDTH=10.5;
 const KERB_WIDTH=3.5;
-const RUNOFF_WIDTH=14.5;
+let RUNOFF_WIDTH=14.5;
 const WALL_DISTANCE=48;
 const TRACK_SAMPLES=1600;
 const sceneryFootprints=[];
@@ -27053,6 +27053,7 @@ function setActiveTrackData(id){
         :isMonaco
             ?MONACO_TRACK_HALF_WIDTH
             :DEFAULT_TRACK_HALF_WIDTH;
+    RUNOFF_WIDTH=isMonaco?2.5:14.5;
     PIT_SIDE=isMonza?-1:1;
     /* Track-specific pit geometry keeps the lane outside the
        road without carrying Monza's wide pit corridor into Monaco. */
