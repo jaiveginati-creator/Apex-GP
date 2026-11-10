@@ -35863,6 +35863,132 @@ function loadMonzaWorld(){
     monzaWorld.add(crowd);
 
     /* -----------------------------------------------------
+       MONZA GRAND PRIX VENUE UPGRADE
+       Architectural detail for the main stands: proper
+       steel roof trusses, seat banks, LED fascia, stair
+       towers and glazed hospitality boxes.
+       ----------------------------------------------------- */
+    const standSteel=new THREE.MeshStandardMaterial({color:0x303941,metalness:.72,roughness:.42});
+    const standSilver=new THREE.MeshStandardMaterial({color:0xaeb8bd,metalness:.62,roughness:.48});
+    const standSeatMats=[
+        new THREE.MeshStandardMaterial({color:0xc7c9c5,roughness:.82}),
+        new THREE.MeshStandardMaterial({color:0xb52e2b,roughness:.78}),
+        new THREE.MeshStandardMaterial({color:0x263e54,roughness:.78})
+    ];
+    const standGlass=new THREE.MeshStandardMaterial({
+        color:0x6b9aaa,metalness:.58,roughness:.2,
+        transparent:true,opacity:.78
+    });
+    const ledMat=new THREE.MeshStandardMaterial({
+        color:0x151b20,emissive:0x17252b,emissiveIntensity:.65,
+        roughness:.48,metalness:.25
+    });
+    const roofUnderside=new THREE.MeshStandardMaterial({
+        color:0x59636a,metalness:.42,roughness:.62,side:THREE.DoubleSide
+    });
+    for(let si=0;si<standSpecs.length;si++){
+        const spec=standSpecs[si],d=getTrackSample(spec.index);
+        const yaw=getTrackTangentAngle(d),sign=spec.lat>=0?1:-1;
+        const center=frame(d,0,spec.lat,0);
+        const baseY=spaTerrainHeightAt(center.x,center.z);
+        const frontLat=spec.lat-sign*(spec.depth*.5+2.5);
+        /* Track-facing continuous digital advertising fascia. */
+        const fascia=frame(d,0,frontLat,baseY+4.2);
+        box(monzaWorld,.7,2.25,spec.width+5,
+            fascia.x,fascia.y,fascia.z,yaw,ledMat,false);
+        /* Roof soffit and a deeper cantilevered weather canopy. */
+        const roof=frame(d,0,spec.lat+sign*23,baseY+13.8);
+        box(monzaWorld,44,.48,spec.width+22,
+            roof.x,roof.y,roof.z,yaw,roofUnderside,false);
+        const lip=frame(d,0,spec.lat+sign*30,baseY+14.2);
+        box(monzaWorld,1.1,1.15,spec.width+24,
+            lip.x,lip.y,lip.z,yaw,standSteel);
+        /* Repeated steel roof trusses and slender rear columns. */
+        for(let tr=0;tr<5;tr++){
+            const along=-spec.width*.46+tr*(spec.width*.92/4);
+            const p=frame(d,along,spec.lat+sign*21,baseY+10.5);
+            box(monzaWorld,.42,.42,44,p.x,p.y,p.z,yaw,standSteel);
+            const rear=frame(d,along,spec.lat+sign*34,baseY+7);
+            box(monzaWorld,.75,14,.75,rear.x,rear.y,rear.z,yaw,standSteel);
+        }
+        /* Distinct seat-colour blocks, broken by access aisles. */
+        for(let tier=0;tier<5;tier++){
+            const rowLat=spec.lat-sign*(spec.depth*.30-tier*3.4);
+            for(let block=0;block<7;block++){
+                const blockWidth=spec.width/8.2;
+                const along=-spec.width*.44+block*(spec.width*.147);
+                const seat=frame(d,along,rowLat,baseY+4.1+tier*1.65);
+                box(monzaWorld,1.15,.42,blockWidth,
+                    seat.x,seat.y,seat.z,yaw,standSeatMats[(block+tier+si)%3],false);
+            }
+        }
+        /* Glazed VIP hospitality strip beneath the roof. */
+        const vip=frame(d,0,spec.lat+sign*15,baseY+10.1);
+        box(monzaWorld,.42,3.1,spec.width*.78,
+            vip.x,vip.y,vip.z,yaw,standGlass,false);
+        for(let p=0;p<6;p++){
+            const along=-spec.width*.36+p*(spec.width*.144);
+            const mullion=frame(d,along,spec.lat+sign*14.7,baseY+10.1);
+            box(monzaWorld,.24,3.25,.24,
+                mullion.x,mullion.y,mullion.z,yaw,standSteel,false);
+        }
+        /* End stair cores make the stands read as real structures. */
+        for(const end of [-1,1]){
+            const stair=frame(d,end*(spec.width*.48),spec.lat,baseY+5.2);
+            box(monzaWorld,7,10,8,stair.x,stair.y,stair.z,yaw,concreteDark);
+            const stairGlass=frame(d,end*(spec.width*.48),spec.lat-sign*4.2,baseY+6.2);
+            box(monzaWorld,.3,6.2,6,stairGlass.x,stairGlass.y,stairGlass.z,yaw,standGlass,false);
+        }
+        registerSceneryFootprint(center.x,center.z,spec.width+18,spec.depth+20);
+    }
+
+    /* Tall floodlight masts with paired LED banks around the venue. */
+    const floodPoleMat=new THREE.MeshStandardMaterial({color:0x343c42,metalness:.68,roughness:.48});
+    const floodLampMat=new THREE.MeshStandardMaterial({
+        color:0xe9f0ed,emissive:0xd8e8f0,emissiveIntensity:1.25,
+        roughness:.32
+    });
+    for(const idx of [40,220,390,570,760,940,1130,1310,1490]){
+        const d=getTrackSample(idx);
+        for(const side of [-1,1]){
+            if(side===PIT_SIDE&&isInPitCorridor(idx))continue;
+            const p=frame(d,0,side*91,0);
+            const ground=spaTerrainHeightAt(p.x,p.z);
+            box(monzaWorld,1.15,31,1.15,p.x,ground+15.5,p.z,
+                getTrackTangentAngle(d),floodPoleMat);
+            const head=frame(d,0,side*91,31);
+            box(monzaWorld,7,.8,2.4,head.x,ground+31.5,head.z,
+                getTrackTangentAngle(d),floodLampMat,false);
+            for(let lamp=0;lamp<5;lamp++){
+                const lp=frame(d,-2.7+lamp*1.35,side*91,31.5);
+                box(monzaWorld,.75,.38,.65,lp.x,ground+31.7,lp.z,
+                    getTrackTangentAngle(d),floodLampMat,false);
+            }
+        }
+    }
+
+    /* Park access roads and paved spectator plazas, kept clear
+       of the racing corridor and the registered buildings. */
+    const accessRoadMat=new THREE.MeshStandardMaterial({color:0x343a3c,roughness:.96});
+    const plazaMat=new THREE.MeshStandardMaterial({color:0x858982,roughness:.92});
+    for(const idx of [115,505,845,1235]){
+        const d=getTrackSample(idx);
+        const side=idx%2?1:-1;
+        const p=frame(d,0,side*157,0);
+        const ground=spaTerrainHeightAt(p.x,p.z);
+        box(monzaWorld,13,.22,92,p.x,ground+.11,p.z,
+            getTrackTangentAngle(d),accessRoadMat,false);
+        const apron=frame(d,0,side*177,0);
+        box(monzaWorld,42,.18,54,apron.x,ground+.08,apron.z,
+            getTrackTangentAngle(d),plazaMat,false);
+        for(let bollard=0;bollard<8;bollard++){
+            const bp=frame(d,-20+bollard*5.7,side*165,0);
+            box(monzaWorld,.65,1.1,.65,bp.x,ground+.55,bp.z,
+                getTrackTangentAngle(d),standSteel,false);
+        }
+    }
+
+    /* -----------------------------------------------------
        MONZA ROYAL PARK — dense, varied woodland. Build a
        shuffled candidate field across the whole park so
        vegetation density is not biased toward one edge.
