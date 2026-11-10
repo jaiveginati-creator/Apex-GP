@@ -6,7 +6,7 @@ const pointsMatch = html.match(/const monacoPoints=\[([\s\S]*?)\n\];/);
 assert.ok(pointsMatch, "Monaco centreline control points must exist");
 const points = [...pointsMatch[1].matchAll(/\[\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\]/g)]
   .map(m => [Number(m[1]), Number(m[2]), Number(m[3])]);
-assert.ok(points.length >= 40, `Expected a detailed Monaco centreline, found ${points.length} points`);
+assert.ok(points.length >= 100, `Expected a detailed FIA-traced Monaco centreline, found ${points.length} points`);
 let polylineLength = 0;
 for (let i = 1; i < points.length; i++) {
   polylineLength += Math.hypot(
