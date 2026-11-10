@@ -35913,7 +35913,7 @@ function loadMonzaWorld(){
         }
         /* Distinct seat-colour blocks, broken by access aisles. */
         for(let tier=0;tier<5;tier++){
-            const rowLat=spec.lat-sign*(spec.depth*.30-tier*3.4);
+            const rowLat=spec.lat+sign*(tier*4.1);
             for(let block=0;block<7;block++){
                 const blockWidth=spec.width/8.2;
                 const along=-spec.width*.44+block*(spec.width*.147);
@@ -35952,15 +35952,15 @@ function loadMonzaWorld(){
         const d=getTrackSample(idx);
         for(const side of [-1,1]){
             if(side===PIT_SIDE&&isInPitCorridor(idx))continue;
-            const p=frame(d,0,side*91,0);
+            const p=frame(d,0,side*80,0);
             const ground=spaTerrainHeightAt(p.x,p.z);
             box(monzaWorld,1.15,31,1.15,p.x,ground+15.5,p.z,
                 getTrackTangentAngle(d),floodPoleMat);
-            const head=frame(d,0,side*91,31);
+            const head=frame(d,0,side*80,31);
             box(monzaWorld,7,.8,2.4,head.x,ground+31.5,head.z,
                 getTrackTangentAngle(d),floodLampMat,false);
             for(let lamp=0;lamp<5;lamp++){
-                const lp=frame(d,-2.7+lamp*1.35,side*91,31.5);
+                const lp=frame(d,-2.7+lamp*1.35,side*80,31.5);
                 box(monzaWorld,.75,.38,.65,lp.x,ground+31.7,lp.z,
                     getTrackTangentAngle(d),floodLampMat,false);
             }
