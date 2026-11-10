@@ -1,0 +1,26 @@
+name: Monza roadside forest validation
+
+on:
+  push:
+    branches: [trees/monza-roadside-density]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Check browser multiplayer scripts
+        run: node --check client/netgame.js && node --check client/multiplayer.js
+      - name: Check Monza tree density and inline JavaScript
+        run: node scripts/test-monza-trees.mjs
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Run multiplayer regression suite
+        working-directory: server
+        run: npm test
