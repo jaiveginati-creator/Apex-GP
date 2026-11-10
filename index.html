@@ -35989,36 +35989,105 @@ function loadMonzaWorld(){
     }
 
     /* -----------------------------------------------------
-       MONZA ROYAL PARK — dense, varied woodland. Build a
-       shuffled candidate field across the whole park so
-       vegetation density is not biased toward one edge.
+       MONZA ROYAL PARK — use the same irregular beech/oak/
+       broadleaf silhouettes as Spa. Keep Monza's own park-wide
+       placement field and spacing, but replace the old lollipop
+       crowns with Spa-style merged trunk/branch/canopy meshes.
        ----------------------------------------------------- */
     const TREE_CAP=6000;
-    const trunkGeo=new THREE.CylinderGeometry(.28,.9,11,12,2);
-    const trunkMat=new THREE.MeshStandardMaterial({color:0x59402c,roughness:1});
-    const trunks=new THREE.InstancedMesh(trunkGeo,trunkMat,TREE_CAP);
-    const treeKinds=[
-        {geo:new THREE.SphereGeometry(7.2,16,12),mat:new THREE.MeshStandardMaterial({color:0x355d31,roughness:1})},
-        {geo:new THREE.IcosahedronGeometry(7.5,2),mat:new THREE.MeshStandardMaterial({color:0x294f2b,roughness:1})},
-        {geo:new THREE.ConeGeometry(6.3,16,12,3),mat:new THREE.MeshStandardMaterial({color:0x315b35,roughness:1})},
-        {geo:new THREE.SphereGeometry(8.1,14,11),mat:new THREE.MeshStandardMaterial({color:0x527442,roughness:1})}
-    ];
-    const treeCrowns=treeKinds.map(k=>new THREE.InstancedMesh(k.geo,k.mat,TREE_CAP));
-    const treeCrownLayers=treeKinds.map(k=>new THREE.InstancedMesh(k.geo,k.mat,TREE_CAP));
-    /* Branches and smaller leaf masses break up the old lollipop silhouettes. */
-    const branchGeo=new THREE.CylinderGeometry(.12,.3,5.8,7,1);
-    const branchMat=new THREE.MeshStandardMaterial({color:0x60432e,roughness:1});
-    const branches=new THREE.InstancedMesh(branchGeo,branchMat,TREE_CAP*3);
-    const leafClumpGeo=new THREE.SphereGeometry(4.15,10,8);
-    const leafClumpMat=new THREE.MeshStandardMaterial({color:0x3d6937,roughness:1});
-    const leafClumps=new THREE.InstancedMesh(leafClumpGeo,leafClumpMat,TREE_CAP*3);
-    const branchObj=new THREE.Object3D();
-    const leafObj=new THREE.Object3D();
-    let branchCount=0,leafClumpCount=0;
     const treeObj=new THREE.Object3D();
-    const forestGroundY=(x,z)=>-1.15+Math.sin(x*.002+z*.001)*.22;
-    let treeCount=0;
-    const treeKindCounts=treeKinds.map(()=>0);
+    const treeRand=seed=>{
+        let a=seed>>>0;
+        return ()=>{
+            a|=0;
+            a=a+0x6D2B79F5|0;
+            let t=Math.imul(a^a>>>15,1|a);
+            t=t+Math.imul(t^t>>>7,61|t)^t;
+            return ((t^t>>>14)>>>0)/4294967296;
+        };
+    };
+    const treeMerge=list=>{
+        const positions=[],colors=[];
+        for(const source of list){
+            const g=source.index?source.toNonIndexed():source;
+            const p=g.attributes.position,c=g.attributes.color;
+            for(let v=0;v<p.count;v++){
+                positions.push(p.getX(v),p.getY(v),p.getZ(v));
+                colors.push(c.getX(v),c.getY(v),c.getZ(v));
+            }
+            if(g!==source)g.dispose();
+        }
+        const out=new THREE.BufferGeometry();
+        out.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));
+        out.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));
+        out.computeVertexNormals();
+        return out;
+    };
+    const makeMonzaTree=(seed,trunkTop,trunkBottom,trunkH,blobs)=>{
+        const rand=treeRand(seed),parts=[];
+        const paint=(geo,r,g,b,vary)=>{
+            const p=geo.attributes.position,colors=[];
+            for(let v=0;v<p.count;v++){
+                const shade=1+(rand()-.5)*vary;
+                colors.push(r*shade,g*shade,b*shade);
+            }
+            geo.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));
+            return geo;
+        };
+        const jitter=geo=>{
+            const p=geo.attributes.position,seen={};
+            for(let v=0;v<p.count;v++){
+                const key=Math.round(p.getX(v)*7)+","+Math.round(p.getY(v)*7)+","+Math.round(p.getZ(v)*7);
+                let o=seen[key];
+                if(!o)o=seen[key]=[(rand()-.5)*.13,(rand()-.5)*.13,(rand()-.5)*.13];
+                p.setXYZ(v,p.getX(v)+o[0],p.getY(v)+o[1],p.getZ(v)+o[2]);
+            }
+            return geo;
+        };
+        const trunk=new THREE.CylinderGeometry(trunkTop,trunkBottom,trunkH,7);
+        trunk.translate(0,trunkH/2-.3,0);
+        parts.push(paint(jitter(trunk),.29,.22,.15,.24));
+        for(let b=0;b<3;b++){
+            const branch=new THREE.CylinderGeometry(.055,.13,3.4,5);
+            const angle=rand()*Math.PI*2;
+            branch.rotateZ(.55+rand()*.55);
+            branch.rotateY(angle);
+            branch.translate((rand()-.5)*1.3,trunkH-1+rand()*1.5,(rand()-.5)*1.3);
+            parts.push(paint(branch,.27,.20,.14,.18));
+        }
+        for(let b=0;b<blobs.length;b++){
+            const item=blobs[b];
+            const canopy=new THREE.IcosahedronGeometry(item.r,1);
+            jitter(canopy);
+            canopy.translate(item.x,item.y,item.z);
+            const shade=b===0?.78:1;
+            parts.push(paint(canopy,item.c[0]*shade,item.c[1]*shade,item.c[2]*shade,.3));
+        }
+        return treeMerge(parts);
+    };
+    const monzaTreeGeos=[
+        makeMonzaTree(11,.32,.5,7,[
+            {r:3.6,x:0,y:8.5,z:0,c:[.18,.35,.17]},
+            {r:2.7,x:1.8,y:10.5,z:.8,c:[.23,.42,.21]},
+            {r:2.1,x:-1.6,y:11.5,z:-.6,c:[.20,.42,.19]}
+        ]),
+        makeMonzaTree(77,.42,.62,7.5,[
+            {r:4.2,x:0,y:8.8,z:0,c:[.16,.33,.16]},
+            {r:3.1,x:-2.4,y:11,z:1.2,c:[.24,.40,.20]},
+            {r:2.3,x:2.2,y:12,z:-1,c:[.19,.38,.18]}
+        ]),
+        makeMonzaTree(131,.3,.45,8.5,[
+            {r:2.5,x:0,y:9.5,z:0,c:[.13,.30,.15]},
+            {r:1.9,x:.5,y:12,z:0,c:[.17,.36,.17]}
+        ])
+    ];
+    const monzaTreeMat=new THREE.MeshStandardMaterial({
+        vertexColors:true,roughness:.92,metalness:0
+    });
+    const monzaTreeMeshes=monzaTreeGeos.map(geo=>
+        new THREE.InstancedMesh(geo,monzaTreeMat,TREE_CAP)
+    );
+    const monzaTreeCounts=[0,0,0];
     const treeCandidates=[];
     for(let x=trackBounds.minX-margin+42;x<trackBounds.maxX+margin-42;x+=34){
         for(let z=trackBounds.minZ-margin+42;z<trackBounds.maxZ+margin-42;z+=34){
@@ -36031,6 +36100,7 @@ function loadMonzaWorld(){
         }
     }
     treeCandidates.sort((a,b)=>getTrackNoise(a[2],1171)-getTrackNoise(b[2],1171));
+    let treeCount=0;
     for(const candidate of treeCandidates){
         if(treeCount>=TREE_CAP)break;
         const [tx,tz,key]=candidate;
@@ -36049,89 +36119,38 @@ function loadMonzaWorld(){
         const h=spaTerrainHeightAt(tx,tz);
         const seed=getTrackNoise(key,1201);
         const scale=.78+getTrackNoise(key,1207)*.9;
-        const kind=Math.min(treeKinds.length-1,Math.floor(seed*treeKinds.length));
-        treeObj.position.set(tx,h+5*scale,tz);
-        treeObj.rotation.set(0,seed*Math.PI*2,0);
-        treeObj.scale.set(.78*scale,scale,.78*scale);
+        const family=Math.min(2,Math.floor(seed*3));
+        treeObj.position.set(tx,h-.3,tz);
+        treeObj.rotation.set(
+            (getTrackNoise(key,1209)-.5)*.06,
+            seed*Math.PI*2,
+            (getTrackNoise(key,1211)-.5)*.06
+        );
+        treeObj.scale.set(
+            (.88+getTrackNoise(key,1217)*.24)*scale,
+            (.9+getTrackNoise(key,1223)*.22)*scale,
+            (.88+getTrackNoise(key,1229)*.24)*scale
+        );
         treeObj.updateMatrix();
-        trunks.setMatrixAt(treeCount,treeObj.matrix);
-        trunks.setColorAt(treeCount,new THREE.Color().setHSL(.075,.22,.20+seed*.09));
-        treeObj.position.set(tx,h+10.2*scale,tz);
-        treeObj.scale.set(1.08*scale,1.28*scale,1.08*scale);
-        treeObj.updateMatrix();
-        const kindIndex=treeKindCounts[kind]++;
-        treeCrowns[kind].setMatrixAt(kindIndex,treeObj.matrix);
-        treeCrowns[kind].setColorAt(kindIndex,new THREE.Color().setHSL(.255+seed*.055,.32,.22+seed*.13));
-        treeObj.position.set(tx+(seed-.5)*5*scale,h+8.2*scale,tz+(getTrackNoise(key,1213)-.5)*5*scale);
-        treeObj.scale.set(.7*scale,.78*scale,.72*scale);
-        treeObj.updateMatrix();
-        treeCrownLayers[kind].setMatrixAt(kindIndex,treeObj.matrix);
-        treeCrownLayers[kind].setColorAt(kindIndex,new THREE.Color().setHSL(.27+seed*.045,.36,.25+seed*.12));
-        /* Three angled limbs per tree, tucked beneath the foliage. */
-        for(let limb=0;limb<3;limb++){
-            const angle=seed*Math.PI*2+limb*Math.PI*2/3;
-            branchObj.position.set(
-                tx+Math.cos(angle)*1.35*scale,
-                h+(6.2+getTrackNoise(key,1221+limb)*1.2)*scale,
-                tz+Math.sin(angle)*1.35*scale
-            );
-            branchObj.rotation.set(
-                Math.sin(angle)*.48,
-                -angle,
-                Math.cos(angle)*.48
-            );
-            branchObj.scale.setScalar(.72*scale);
-            branchObj.updateMatrix();
-            branches.setMatrixAt(branchCount,branchObj.matrix);
-            branchCount++;
-            /* Offset canopy lobes create a less uniform, fuller crown. */
-            leafObj.position.set(
-                tx+Math.cos(angle)*4.1*scale,
-                h+(10.1+getTrackNoise(key,1231+limb)*2.2)*scale,
-                tz+Math.sin(angle)*4.1*scale
-            );
-            leafObj.rotation.set(
-                getTrackNoise(key,1241+limb)*.5,
-                angle,
-                getTrackNoise(key,1251+limb)*.5
-            );
-            leafObj.scale.set(
-                (.78+getTrackNoise(key,1261+limb)*.32)*scale,
-                (.72+getTrackNoise(key,1271+limb)*.35)*scale,
-                (.78+getTrackNoise(key,1281+limb)*.32)*scale
-            );
-            leafObj.updateMatrix();
-            leafClumps.setMatrixAt(leafClumpCount,leafObj.matrix);
-            leafClumps.setColorAt(leafClumpCount,new THREE.Color().setHSL(
-                .265+getTrackNoise(key,1291+limb)*.075,
-                .34,
-                .19+getTrackNoise(key,1301+limb)*.15
-            ));
-            leafClumpCount++;
-        }
+        const mesh=monzaTreeMeshes[family];
+        const slot=monzaTreeCounts[family]++;
+        mesh.setMatrixAt(slot,treeObj.matrix);
+        const shade=.82+getTrackNoise(key,1237)*.36;
+        mesh.setColorAt(slot,new THREE.Color().setRGB(
+            shade*(.9+getTrackNoise(key,1241)*.2),
+            shade,
+            shade*(.86+getTrackNoise(key,1243)*.2)
+        ));
+        registerSceneryFootprint(tx,tz,5,5);
         treeCount++;
     }
-    trunks.count=treeCount;
-    trunks.instanceMatrix.needsUpdate=true;
-    if(trunks.instanceColor)trunks.instanceColor.needsUpdate=true;
-    trunks.castShadow=true;
-    monzaWorld.add(trunks);
-    branches.count=branchCount;
-    branches.instanceMatrix.needsUpdate=true;
-    branches.castShadow=true;
-    leafClumps.count=leafClumpCount;
-    leafClumps.instanceMatrix.needsUpdate=true;
-    if(leafClumps.instanceColor)leafClumps.instanceColor.needsUpdate=true;
-    monzaWorld.add(branches,leafClumps);
-    for(let k=0;k<treeKinds.length;k++){
-        treeCrowns[k].count=treeKindCounts[k];
-        treeCrownLayers[k].count=treeKindCounts[k];
-        treeCrowns[k].instanceMatrix.needsUpdate=true;
-        treeCrownLayers[k].instanceMatrix.needsUpdate=true;
-        if(treeCrowns[k].instanceColor)treeCrowns[k].instanceColor.needsUpdate=true;
-        if(treeCrownLayers[k].instanceColor)treeCrownLayers[k].instanceColor.needsUpdate=true;
-        treeCrowns[k].castShadow=true;
-        monzaWorld.add(treeCrowns[k],treeCrownLayers[k]);
+    for(let family=0;family<3;family++){
+        const mesh=monzaTreeMeshes[family];
+        mesh.count=monzaTreeCounts[family];
+        mesh.instanceMatrix.needsUpdate=true;
+        if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+        mesh.castShadow=true;
+        monzaWorld.add(mesh);
     }
 
     /* Dense understory fills the gaps between mature trees. */
