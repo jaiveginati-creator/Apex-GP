@@ -2,7 +2,7 @@ name: Apex GP multiplayer checks
 
 on:
   push:
-    branches: [main, multiplayer-overhaul, trees/monza-roadside-density]
+    branches: [main, multiplayer-overhaul, trees/monza-roadside-density, ai/corner-speed-intelligence]
   pull_request:
     branches: [main]
 
@@ -23,6 +23,8 @@ jobs:
         run: node --check client/netgame.js && node --check client/multiplayer.js
       - name: Check Monza tree geometry and inline JavaScript
         run: node scripts/test-monza-trees.mjs
+      - name: Check AI corner speed planning
+        run: node scripts/test-ai-corner-planning.mjs
       - name: Run multiplayer test suite
         working-directory: server
         run: npm test
