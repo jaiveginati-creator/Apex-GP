@@ -21,6 +21,8 @@ jobs:
         run: npm ci
       - name: Check browser multiplayer scripts
         run: node --check client/netgame.js && node --check client/multiplayer.js
+      - name: Check Monza tree geometry and inline JavaScript
+        run: node scripts/test-monza-trees.mjs
       - name: Run multiplayer test suite
         working-directory: server
         run: npm test
