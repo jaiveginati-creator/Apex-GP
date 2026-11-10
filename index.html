@@ -36899,9 +36899,12 @@ function updatePitSystem(dt){
     playerPit.index=info.index;
     playerPit.lateral=info.lateral;
 
+    /* The path-distance test already proves the car is beside
+       the generated pit lane. Do not infer entry from the
+       track-normal sign: Monza's centreline winding is opposite
+       to the other circuits. */
     playerPit.inPit=
         playerPit.nearPath&&
-        PIT_SIDE*info.lateral>30&&
         isInPitCorridor(info.index);
 
     if(!playerPit.inPit){
@@ -37030,8 +37033,7 @@ function updatePitSystem(dt){
             info.lateral-PLAYER_BOX_LATERAL;
 
         const inLaneLateral=
-            PIT_SIDE*info.lateral>
-                PIT_SIDE*row.lateral-7;
+            Math.abs(info.lateral-row.lateral)<13;
 
         /* armed well before the box, tolerant of the exact frame */
         if(
@@ -37677,7 +37679,6 @@ function maybeStartPlayer2Pit(ai){
 
     if(
         !info||
-        PIT_SIDE*info.lateral<=30||
         !isInPitCorridor(info.index)
     ){
         return;
