@@ -4,10 +4,15 @@ import assert from "node:assert/strict";
 const file = "index.html";
 let html = fs.readFileSync(file, "utf8");
 
+const sectionStart = html.indexOf("const monzaSpaTreeGeos=[");
+const sectionEnd = html.indexOf("const monzaTreeMeshes=", sectionStart);
+assert.ok(sectionStart >= 0 && sectionEnd > sectionStart, "Could not locate Monza tree-family geometry section.");
+let section = html.slice(sectionStart, sectionEnd);
+
 function replaceExactlyOnce(before, after, label) {
-  const count = html.split(before).length - 1;
-  assert.equal(count, 1, `Expected one occurrence of ${label}; found ${count}. Refusing to patch an unexpected version.`);
-  html = html.replace(before, after);
+  const count = section.split(before).length - 1;
+  assert.equal(count, 1, `Expected one occurrence of ${label} inside Monza tree families; found ${count}. Refusing to patch an unexpected version.`);
+  section = section.replace(before, after);
 }
 
 // Add irregular outer canopy masses to each of Monza's three Spa-derived
@@ -43,5 +48,6 @@ replaceExactlyOnce(
   "third tree-family canopy"
 );
 
+html = html.slice(0, sectionStart) + section + html.slice(sectionEnd);
 fs.writeFileSync(file, html);
 console.log("Monza tree canopy upgrade applied: +6 foliage masses across 3 shared tree variants.");
