@@ -36899,13 +36899,11 @@ function updatePitSystem(dt){
     playerPit.index=info.index;
     playerPit.lateral=info.lateral;
 
-    /* The path-distance test already proves the car is beside
-       the generated pit lane. Do not infer entry from the
-       track-normal sign: Monza's centreline winding is opposite
-       to the other circuits. */
-    playerPit.inPit=
-        playerPit.nearPath&&
-        isInPitCorridor(info.index);
+    /* The generated pit path is the source of truth. Track
+       sample indices are not aligned identically on Monza,
+       so a shared index corridor can reject a car physically
+       driving through the pit lane. */
+    playerPit.inPit=playerPit.nearPath;
 
     if(!playerPit.inPit){
 
@@ -36922,10 +36920,7 @@ function updatePitSystem(dt){
 
         playerPit.approaching=
             toEntry<260||
-            (
-                playerPit.nearPath&&
-                isInPitCorridor(info.index)
-            );
+            playerPit.nearPath;
 
     }else{
 
@@ -37677,10 +37672,10 @@ function maybeStartPlayer2Pit(ai){
             ai.mesh.position
         );
 
-    if(
-        !info||
-        !isInPitCorridor(info.index)
-    ){
+    /* The AI has already passed the geometric pit-path
+       distance check above. Do not reject Monza using the
+       shared track-index corridor. */
+    if(!info){
         return;
     }
 
@@ -40460,13 +40455,15 @@ function isPitWindowOpen(){
             player.position
         );
 
-    /* the pit entry taper, approached the normal way */
-    return (
-        info.index>
-            PIT_ENTRY_START-300&&
-        info.index<
-            PIT_ENTRY_START+140
-    );
+    /* Use actual distance to the generated entry path rather
+       than shared sample indices, which differ by circuit. */
+    const pathK=findPitPathIndex(player.position,playerPit.pathK);
+    const row=PIT_PATH[pathK];
+    if(!row) return false;
+    const dx=player.position.x-row.pos.x;
+    const dz=player.position.z-row.pos.z;
+    const distance=Math.sqrt(dx*dx+dz*dz);
+    return distance<18&&row.s<=PIT_ENTRY_LEN+35;
 
 }
 
