@@ -4248,11 +4248,15 @@ spaWorld.visible=false;
 const monzaWorld=new THREE.Group();
 monzaWorld.name="monzaWorld";
 monzaWorld.visible=false;
+const monacoWorld=new THREE.Group();
+monacoWorld.name="monacoWorld";
+monacoWorld.visible=false;
 scene.add(jeddahWorld);
 scene.add(spaWorld);
 scene.add(monzaWorld);
+scene.add(monacoWorld);
 let activeWorldGroup=jeddahWorld;
-const footprintsByTrack={jeddah:null,spa:null,monza:null};
+const footprintsByTrack={jeddah:null,spa:null,monza:null,monaco:null};
 
 const __trackCollecting={on:false,adds:[]};
 const __sceneAdd=scene.add.bind(scene);
@@ -4293,8 +4297,9 @@ const TRACK_SCALE=1.30;
 const DEFAULT_TRACK_HALF_WIDTH=22;
 let TRACK_HALF_WIDTH=DEFAULT_TRACK_HALF_WIDTH;
 const MONZA_TRACK_HALF_WIDTH=22;
+const MONACO_TRACK_HALF_WIDTH=10.5;
 const KERB_WIDTH=3.5;
-const RUNOFF_WIDTH=14.5;
+let RUNOFF_WIDTH=14.5;
 const WALL_DISTANCE=48;
 const TRACK_SAMPLES=1600;
 const sceneryFootprints=[];
@@ -4521,6 +4526,35 @@ const spaPoints=[
    The source is based on OpenStreetMap geometry. Coordinates
    are converted to the game's world scale in trackPointsFor().
    ========================================================= */
+/* =========================================================
+   MONACO CONTROL POINTS — 19-corner Monte-Carlo street lap.
+   The route follows the FIA 2025 circuit-map sequence:
+   Sainte Devote, Beau Rivage, Massenet/Casino, Mirabeau,
+   Fairmont hairpin, Portier, tunnel, Nouvelle Chicane,
+   Tabac, Swimming Pool, Rascasse and Anthony Noghes.
+   The FIA map gives a 3.337 km centreline; the spline is
+   scaled dynamically to that published distance below.
+   ========================================================= */
+const monacoPoints=[
+ [0,0,0],[0,0,-170],[8,0,-215],[32,0,-250],[75,0,-275],
+ [135,0,-300],[205,0,-325],[270,0,-370],[330,0,-430],
+ [370,0,-500],[415,0,-555],[465,0,-580],[515,0,-565],
+ [545,0,-525],[530,0,-485],[485,0,-465],[520,0,-430],
+ [570,0,-365],[605,0,-270],[620,0,-160],[620,0,-40],
+ [600,0,35],[555,0,75],[505,0,78],[475,0,52],
+ [485,0,105],[455,0,145],[405,0,175],[345,0,195],
+ [280,0,215],[220,0,245],[160,0,280],[115,0,330],
+ [105,0,385],[135,0,435],[185,0,465],[235,0,470],
+ [270,0,445],[275,0,410],[250,0,375],[205,0,340],
+ [155,0,300],[105,0,255],[55,0,205],[20,0,145],
+ [0,0,80]
+];
+const MONACO_PUBLISHED_LENGTH_M=3337;
+const MONACO_BASE_LENGTH_M=new THREE.CatmullRomCurve3(
+    monacoPoints.map(p=>new THREE.Vector3(p[0],p[1],p[2])),
+    true,"centripetal",.35
+).getLength();
+
 const MONZA_SOURCE_LENGTH_M=5790.201866584;
 const MONZA_PUBLISHED_LENGTH_M=5793;
 const monzaPoints=[
@@ -27001,24 +27035,32 @@ function trackPointsFor(id){
         const factor=(MONZA_PUBLISHED_LENGTH_M/MONZA_SOURCE_LENGTH_M)/TRACK_SCALE;
         return monzaPoints.map(p=>[p[0]*factor,p[1],p[2]*factor]);
     }
+    if(id==="monaco"){
+        const factor=MONACO_PUBLISHED_LENGTH_M/(MONACO_BASE_LENGTH_M*TRACK_SCALE);
+        return monacoPoints.map(p=>[p[0]*factor,p[1],p[2]*factor]);
+    }
     return rawPoints;
 }
 
 
 function setActiveTrackData(id){
 
-    activeTrackId=id==="spa"?"spa":id==="monza"?"monza":"jeddah";
+    activeTrackId=id==="spa"?"spa":id==="monza"?"monza":id==="monaco"?"monaco":"jeddah";
     const isMonza=activeTrackId==="monza";
+    const isMonaco=activeTrackId==="monaco";
     TRACK_HALF_WIDTH=isMonza
         ?MONZA_TRACK_HALF_WIDTH
-        :DEFAULT_TRACK_HALF_WIDTH;
+        :isMonaco
+            ?MONACO_TRACK_HALF_WIDTH
+            :DEFAULT_TRACK_HALF_WIDTH;
+    RUNOFF_WIDTH=isMonaco?2.5:14.5;
     PIT_SIDE=isMonza?-1:1;
-    /* Monza's pit lane must sit outside the widened racing
-       surface. Keep the entry/exit tapers just beyond the edge. */
-    PIT_LANE_PATH_LATERAL=isMonza?35:DEFAULT_PIT_LANE_PATH_LATERAL;
-    PIT_BOX_LATERAL=isMonza?41.5:DEFAULT_PIT_BOX_LATERAL;
-    PIT_ENTRY_LATERAL=isMonza?23:DEFAULT_PIT_ENTRY_LATERAL;
-    PIT_EXIT_LATERAL=isMonza?23:DEFAULT_PIT_EXIT_LATERAL;
+    /* Track-specific pit geometry keeps the lane outside the
+       road without carrying Monza's wide pit corridor into Monaco. */
+    PIT_LANE_PATH_LATERAL=isMonza?35:isMonaco?20:DEFAULT_PIT_LANE_PATH_LATERAL;
+    PIT_BOX_LATERAL=isMonza?41.5:isMonaco?26.5:DEFAULT_PIT_BOX_LATERAL;
+    PIT_ENTRY_LATERAL=isMonza?23:isMonaco?13.5:DEFAULT_PIT_ENTRY_LATERAL;
+    PIT_EXIT_LATERAL=isMonza?23:isMonaco?13.5:DEFAULT_PIT_EXIT_LATERAL;
 
     buildTrackCurveData(
         trackPointsFor(activeTrackId)
@@ -36536,9 +36578,443 @@ function loadMonzaWorld(){
     console.log("[TRACK] Monza world ready: terrain, parkland, grandstands, paddock and trackside detail");
 }
 
+let monacoWorldBuilt=false;
+
+function loadMonacoWorld(){
+
+    if(monacoWorldBuilt)return;
+
+    console.log("[TRACK] building Monaco street circuit and Monte-Carlo...");
+    while(monacoWorld.children.length)monacoWorld.remove(monacoWorld.children[0]);
+    if(!footprintsByTrack.jeddah)saveFootprints("jeddah");
+
+    setActiveTrackData("monaco");
+    sceneryFootprints.length=0;
+    activeWorldGroup=monacoWorld;
+
+    const bounds={minX:Infinity,maxX:-Infinity,minZ:Infinity,maxZ:-Infinity};
+    for(let i=0;i<TRACK_SAMPLES;i+=4){
+        const p=getTrackSample(i).p;
+        bounds.minX=Math.min(bounds.minX,p.x);
+        bounds.maxX=Math.max(bounds.maxX,p.x);
+        bounds.minZ=Math.min(bounds.minZ,p.z);
+        bounds.maxZ=Math.max(bounds.maxZ,p.z);
+    }
+
+    const box=(w,h,d,x,y,z,yaw,mat,cast=true)=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+        m.position.set(x,y,z);m.rotation.y=yaw;
+        m.castShadow=cast;m.receiveShadow=true;monacoWorld.add(m);return m;
+    };
+    const frame=(sample,along,lateral,y=0)=>{
+        const yaw=getTrackTangentAngle(sample);
+        return sample.p.clone()
+            .addScaledVector(sample.normal,lateral)
+            .add(new THREE.Vector3(Math.sin(yaw)*along,y,Math.cos(yaw)*along));
+    };
+
+    /* Dense stone-and-asphalt city ground, with no forest or
+       wide grass run-off: the track is embedded in Monaco. */
+    const groundW=bounds.maxX-bounds.minX+900;
+    const groundD=bounds.maxZ-bounds.minZ+900;
+    const centerX=(bounds.maxX+bounds.minX)/2;
+    const centerZ=(bounds.maxZ+bounds.minZ)/2;
+    const cityGroundGeo=new THREE.PlaneGeometry(groundW,groundD,110,110);
+    cityGroundGeo.rotateX(-Math.PI/2);
+    cityGroundGeo.translate(centerX,-1.25,centerZ);
+    const gp=cityGroundGeo.attributes.position;
+    const groundColors=[];
+    for(let i=0;i<gp.count;i++){
+        const x=gp.getX(i),z=gp.getZ(i);
+        const grain=Math.sin(x*.045+z*.021)*.018+
+                    Math.cos(z*.037-x*.029)*.014;
+        const shade=.92+grain;
+        gp.setY(i,-1.25+Math.sin(x*.003+z*.002)*.08);
+        groundColors.push(.49*shade,.48*shade,.45*shade);
+    }
+    cityGroundGeo.attributes.position.needsUpdate=true;
+    cityGroundGeo.setAttribute("color",new THREE.Float32BufferAttribute(groundColors,3));
+    cityGroundGeo.computeVertexNormals();
+    const cityGround=new THREE.Mesh(cityGroundGeo,new THREE.MeshStandardMaterial({
+        color:0xffffff,vertexColors:true,roughness:1
+    }));
+    cityGround.receiveShadow=true;monacoWorld.add(cityGround);
+
+    /* The Mediterranean and Port Hercule sit immediately
+       beside the eastern straight, with a visible quay edge. */
+    const seaMat=new THREE.MeshStandardMaterial({
+        color:0x176b83,roughness:.23,metalness:.22,
+        transparent:true,opacity:.94
+    });
+    const sea=new THREE.Mesh(new THREE.PlaneGeometry(690,1120,1,1),seaMat);
+    sea.rotation.x=-Math.PI/2;sea.position.set(1030,-2.1,-80);
+    monacoWorld.add(sea);
+    const quayMat=new THREE.MeshStandardMaterial({color:0xb8b6ad,roughness:.88});
+    box(8,5,1080,685,.1,-80,0,quayMat);
+    for(let i=0;i<7;i++){
+        const pierZ=-470+i*128;
+        box(90,1.1,8,790,-.65,pierZ,0,quayMat);
+        box(4,1.6,7,748,-.25,pierZ,0,quayMat);
+        box(4,1.6,7,832,-.25,pierZ,0,quayMat);
+    }
+
+    /* Marina yachts: white hulls, dark waterline, decks,
+       cabins and masts, instanced only where possible. */
+    const hullMat=new THREE.MeshStandardMaterial({color:0xe8e8e1,roughness:.34,metalness:.12});
+    const hullDark=new THREE.MeshStandardMaterial({color:0x24333b,roughness:.45});
+    const deckMat=new THREE.MeshStandardMaterial({color:0xf4f1e8,roughness:.58});
+    const yachtSpots=[
+        [865,-430,-.12],[955,-360,.08],[1080,-285,-.05],
+        [900,-160,.1],[1040,-55,-.08],[880,70,.06],
+        [1050,190,-.12],[1170,330,.1]
+    ];
+    for(let i=0;i<yachtSpots.length;i++){
+        const [x,z,yaw]=yachtSpots[i];
+        box(7,1.8,34,x,-.25,z,yaw,hullDark);
+        box(6.2,1.2,31,x,.25,z,yaw,hullMat);
+        box(5.1,1.6,11,x,.95,z-2,yaw,deckMat);
+        box(.16,15,.16,x,8,z-1,yaw,hullDark,false);
+        box(2.8,.15,2.8,x,1.85,z+1,yaw,hullMat,false);
+    }
+
+    /* Track: narrow Monaco asphalt, concrete street apron,
+       white edge paint and close red/white kerbs. */
+    const apronMat=new THREE.MeshStandardMaterial({color:0x777a79,roughness:.94});
+    monacoWorld.add(createRibbon(MONACO_TRACK_HALF_WIDTH+2.6,-.035,apronMat,8));
+    const monacoRoad=createRibbon(MONACO_TRACK_HALF_WIDTH,.012,asphaltMaterial,28,getSpaAsphaltVertexColor);
+    monacoRoad.receiveShadow=true;monacoWorld.add(monacoRoad);
+
+    const edgeMat=new THREE.MeshStandardMaterial({color:0xf1f0e9,roughness:.78});
+    const edges=new THREE.InstancedMesh(
+        new THREE.BoxGeometry(.2,.045,METERS_PER_SAMPLE*2.4),
+        edgeMat,Math.ceil(TRACK_SAMPLES/2)*2
+    );
+    const edgeObj=new THREE.Object3D();let edgeCount=0;
+    for(let i=0;i<TRACK_SAMPLES;i+=2){
+        const d=getTrackSample(i);
+        for(const side of [-1,1]){
+            edgeObj.position.copy(d.p).addScaledVector(d.normal,side*(MONACO_TRACK_HALF_WIDTH-.22));
+            edgeObj.position.y=d.p.y+.045;
+            edgeObj.rotation.set(0,getTrackTangentAngle(d),0);
+            pitchToGrade(edgeObj,i);edgeObj.updateMatrix();
+            edges.setMatrixAt(edgeCount++,edgeObj.matrix);
+        }
+    }
+    edges.count=edgeCount;edges.instanceMatrix.needsUpdate=true;monacoWorld.add(edges);
+
+    const redKerbs=new THREE.InstancedMesh(kerbGeometry,redKerbMaterial,MAX_KERB_INSTANCES);
+    const whiteKerbs=new THREE.InstancedMesh(kerbGeometry,whiteKerbMaterial,MAX_KERB_INSTANCES);
+    const kerbObj=new THREE.Object3D();let redCount=0,whiteCount=0;
+    for(let i=0;i<TRACK_SAMPLES;i+=KERB_SAMPLE_STEP){
+        if(!isNearKerbCorner(i))continue;
+        const d=getTrackSample(i);
+        for(const side of [-1,1]){
+            kerbObj.position.copy(d.p).addScaledVector(d.normal,side*(MONACO_TRACK_HALF_WIDTH+1.25));
+            kerbObj.position.y=d.p.y+.06;
+            kerbObj.rotation.set(0,getTrackTangentAngle(d),0);
+            pitchToGrade(kerbObj,i);kerbObj.updateMatrix();
+            if(Math.floor(i/KERB_SAMPLE_STEP)%2===0&&redCount<MAX_KERB_INSTANCES)
+                redKerbs.setMatrixAt(redCount++,kerbObj.matrix);
+            else if(whiteCount<MAX_KERB_INSTANCES)
+                whiteKerbs.setMatrixAt(whiteCount++,kerbObj.matrix);
+        }
+    }
+    redKerbs.count=redCount;whiteKerbs.count=whiteCount;
+    redKerbs.instanceMatrix.needsUpdate=true;whiteKerbs.instanceMatrix.needsUpdate=true;
+    monacoWorld.add(redKerbs,whiteKerbs);
+
+    /* Armco and concrete barriers stay close to the road,
+       replacing the wide open runoff typical of permanent tracks. */
+    const wallMat=new THREE.MeshStandardMaterial({color:0x8c9295,roughness:.78,metalness:.12});
+    const railMat=new THREE.MeshStandardMaterial({color:0xb8c0c4,roughness:.42,metalness:.68});
+    const barrierGeo=new THREE.BoxGeometry(.9,1.25,METERS_PER_SAMPLE*3.8);
+    const railGeo=new THREE.BoxGeometry(.38,.28,METERS_PER_SAMPLE*3.8);
+    const barriers=new THREE.InstancedMesh(barrierGeo,wallMat,Math.ceil(TRACK_SAMPLES/4)*2);
+    const rails=new THREE.InstancedMesh(railGeo,railMat,Math.ceil(TRACK_SAMPLES/4)*2);
+    const wallObj=new THREE.Object3D();let wallCount=0;
+    for(let i=0;i<TRACK_SAMPLES;i+=4){
+        const d=getTrackSample(i);
+        for(const side of [-1,1]){
+            if(side===PIT_SIDE&&isInPitCorridor(i))continue;
+            wallObj.position.copy(d.p).addScaledVector(d.normal,side*13.7);
+            wallObj.position.y=d.p.y+.62;
+            wallObj.rotation.set(0,getTrackTangentAngle(d),0);
+            pitchToGrade(wallObj,i);wallObj.updateMatrix();
+            barriers.setMatrixAt(wallCount,wallObj.matrix);
+            wallObj.position.y+=.68;wallObj.scale.set(1,1,1);wallObj.updateMatrix();
+            rails.setMatrixAt(wallCount,wallObj.matrix);
+            wallCount++;
+        }
+    }
+    barriers.count=wallCount;rails.count=wallCount;
+    barriers.instanceMatrix.needsUpdate=true;rails.instanceMatrix.needsUpdate=true;
+    barriers.receiveShadow=true;monacoWorld.add(barriers,rails);
+
+    /* Pit lane and compact garages on the start/finish straight. */
+    monacoWorld.add(buildPitStrip(row=>pitInnerEdge(row),row=>pitOuterEdge(row),.025,pitAsphaltMaterial));
+    monacoWorld.add(buildPitStrip(row=>pitInnerEdge(row),row=>pitInnerEdge(row)+PIT_SIDE*.3,.05,pitLineMaterial));
+    monacoWorld.add(buildPitStrip(row=>pitOuterEdge(row)-PIT_SIDE*.3,row=>pitOuterEdge(row),.05,pitLineMaterial));
+    monacoWorld.add(createPitCrossLine(PIT_LANE_START,pitYellowMaterial,.8));
+    monacoWorld.add(createPitCrossLine(PIT_LIMIT_END,pitYellowMaterial,.8));
+
+    const pitSample=getTrackSample(22);
+    const pitYaw=getTrackTangentAngle(pitSample);
+    const pitCenter=frame(pitSample,0,PIT_SIDE*42,0);
+    const pitConcrete=new THREE.MeshStandardMaterial({color:0xc3c4c1,roughness:.78});
+    const pitGlass=new THREE.MeshStandardMaterial({color:0x315365,metalness:.48,roughness:.22});
+    const pitRoof=new THREE.MeshStandardMaterial({color:0x353d43,roughness:.62,metalness:.3});
+    box(18,9,126,pitCenter.x,4.5,pitCenter.z,pitYaw,pitConcrete);
+    const glassPos=frame(pitSample,0,PIT_SIDE*32.5,4.5);
+    box(.35,4.5,116,glassPos.x,glassPos.y,glassPos.z,pitYaw,pitGlass,false);
+    const roofPos=frame(pitSample,0,PIT_SIDE*42,9.2);
+    box(23,1.1,134,roofPos.x,roofPos.y,roofPos.z,pitYaw,pitRoof);
+    for(let i=0;i<10;i++){
+        const along=-54+i*12;
+        const g=frame(pitSample,along,PIT_SIDE*31.5,2.3);
+        box(.3,4.4,10,g.x,g.y,g.z,pitYaw,pitGlass,false);
+    }
+    for(const pb of pitBoxes){
+        const gp=pb.pos.clone().addScaledVector(getTrackSample(pb.index).normal,PIT_SIDE*8.5);
+        box(7,.16,5,gp.x,gp.y+.12,gp.z,getTrackTangentAngle(getTrackSample(pb.index)),edgeMat,false);
+    }
+
+    /* Monte-Carlo apartment blocks: warm limestone, pale
+       stucco, pastel facades, shutters and repeated balconies.
+       Dense rows make this read as a real city, not a park map. */
+    const buildingMats=[
+        new THREE.MeshStandardMaterial({color:0xd6c5ad,roughness:.92}),
+        new THREE.MeshStandardMaterial({color:0xe1d7c8,roughness:.92}),
+        new THREE.MeshStandardMaterial({color:0xcda99a,roughness:.92}),
+        new THREE.MeshStandardMaterial({color:0xb9c2bd,roughness:.9}),
+        new THREE.MeshStandardMaterial({color:0xe5dfd2,roughness:.92})
+    ];
+    const roofMats=[
+        new THREE.MeshStandardMaterial({color:0x66564c,roughness:.92}),
+        new THREE.MeshStandardMaterial({color:0x8a5e4c,roughness:.92}),
+        new THREE.MeshStandardMaterial({color:0x4b5558,roughness:.86})
+    ];
+    const windowMat=new THREE.MeshStandardMaterial({
+        color:0x31434a,roughness:.24,metalness:.22,
+        emissive:0x172329,emissiveIntensity:.12
+    });
+    const shutterMat=new THREE.MeshStandardMaterial({color:0x6d8b8a,roughness:.78});
+    const buildingGeo=new THREE.BoxGeometry(1,1,1);
+    const buildingInstances=buildingMats.map(mat=>new THREE.InstancedMesh(buildingGeo,mat,180));
+    const roofInstances=roofMats.map(mat=>new THREE.InstancedMesh(buildingGeo,mat,180));
+    const winInstances=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),windowMat,6000);
+    const shutterInstances=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),shutterMat,3000);
+    const buildObj=new THREE.Object3D(),winObj=new THREE.Object3D();
+    const buildCounts=[0,0,0,0,0],roofCounts=[0,0,0],winCounts={n:0,sh:0};
+    const addBuilding=(sample,side,lat,along,w,depth,h,seed)=>{
+        const p=frame(sample,along,side*lat,0);
+        const x=p.x,z=p.z;
+        if(x>660&&z>-500&&z<420)return;
+        if(distanceToTrackXZ(x,z)<lat-3)return;
+        const yaw=getTrackTangentAngle(sample);
+        const matIndex=Math.floor(getTrackNoise(seed,1801)*buildingMats.length);
+        const roofIndex=Math.floor(getTrackNoise(seed,1807)*roofMats.length);
+        buildObj.position.set(x,h/2,z);buildObj.rotation.set(0,yaw,0);
+        buildObj.scale.set(w,h,depth);buildObj.updateMatrix();
+        const bi=buildCounts[matIndex]++;
+        buildingInstances[matIndex].setMatrixAt(bi,buildObj.matrix);
+        const roofY=h+.65;
+        buildObj.position.set(x,roofY,z);buildObj.scale.set(w+1.5,1.2,depth+1.5);
+        buildObj.updateMatrix();
+        const ri=roofCounts[roofIndex]++;
+        roofInstances[roofIndex].setMatrixAt(ri,buildObj.matrix);
+        /* Windows on the side facing the circuit. */
+        const faceYaw=yaw+(side>0?-Math.PI/2:Math.PI/2);
+        const floors=Math.max(3,Math.floor(h/4.1));
+        const columns=Math.max(3,Math.floor(w/5.2));
+        for(let fy=1;fy<floors;fy++){
+            for(let cx=0;cx<columns;cx++){
+                if(winCounts.n>=5990)break;
+                const alongWin=(cx-(columns-1)/2)*(w/(columns+1));
+                const wp=frame(sample,along+alongWin,side*(lat-depth/2-.12),fy*4.05);
+                winObj.position.set(wp.x,wp.y,wp.z);
+                winObj.rotation.set(0,faceYaw,0);
+                winObj.scale.set(1.45,1.8,.18);winObj.updateMatrix();
+                winInstances.setMatrixAt(winCounts.n++,winObj.matrix);
+                if(cx%2===0&&winCounts.sh<2990){
+                    winObj.position.y-=.95;winObj.scale.set(1.7,.32,.28);
+                    winObj.updateMatrix();shutterInstances.setMatrixAt(winCounts.sh++,winObj.matrix);
+                }
+            }
+        }
+        registerSceneryFootprint(x,z,Math.max(w,depth)*.65);
+    };
+
+    for(let i=160;i<1440;i+=29){
+        const d=getTrackSample(i);
+        for(const side of [-1,1]){
+            const lat=35+getTrackNoise(i,side+1811)*18;
+            const w=19+getTrackNoise(i,side+1817)*12;
+            const depth=20+getTrackNoise(i,side+1823)*10;
+            const h=18+getTrackNoise(i,side+1829)*38;
+            addBuilding(d,side,lat,0,w,depth,h,i+side*1000);
+            if(i%58===20){
+                const second=frame(d,0,side*(lat+64),0);
+                if(!(second.x>660&&second.z>-500&&second.z<420)){
+                    addBuilding(d,side,lat+64,0,24+getTrackNoise(i,1831)*18,
+                        22+getTrackNoise(i,1837)*10,24+getTrackNoise(i,1841)*42,i+side*2000);
+                }
+            }
+        }
+    }
+    for(let i=0;i<buildingInstances.length;i++){
+        buildingInstances[i].count=buildCounts[i];
+        buildingInstances[i].instanceMatrix.needsUpdate=true;
+        monacoWorld.add(buildingInstances[i]);
+        roofInstances[i%roofInstances.length].count=roofCounts[i%roofInstances.length];
+        roofInstances[i%roofInstances.length].instanceMatrix.needsUpdate=true;
+    }
+    /* Add remaining roof batches without duplicating the first three. */
+    for(let i=0;i<roofInstances.length;i++){
+        if(!monacoWorld.children.includes(roofInstances[i])){
+            roofInstances[i].count=roofCounts[i];
+            roofInstances[i].instanceMatrix.needsUpdate=true;
+            monacoWorld.add(roofInstances[i]);
+        }
+    }
+    winInstances.count=winCounts.n;winInstances.instanceMatrix.needsUpdate=true;
+    shutterInstances.count=winCounts.sh;shutterInstances.instanceMatrix.needsUpdate=true;
+    monacoWorld.add(winInstances,shutterInstances);
+
+    /* Casino de Monte-Carlo landmark: grand pale facade,
+       central pediment, roofline and a row of columns. */
+    const casinoD=getTrackSample(430);
+    const casino=frame(casinoD,0,-73,0);
+    const casinoYaw=getTrackTangentAngle(casinoD);
+    const casinoStone=new THREE.MeshStandardMaterial({color:0xe5d7bf,roughness:.78});
+    const casinoGold=new THREE.MeshStandardMaterial({color:0xb69a63,metalness:.36,roughness:.48});
+    const casinoRoof=new THREE.MeshStandardMaterial({color:0x4b4540,roughness:.86});
+    box(62,19,36,casino.x,9.5,casino.z,casinoYaw,casinoStone);
+    const casinoFront=frame(casinoD,0,-54,13);
+    box(64,3,3,casinoFront.x,casinoFront.y,casinoFront.z,casinoYaw,casinoGold);
+    const casinoTop=frame(casinoD,0,-73,20);
+    box(66,2,39,casinoTop.x,casinoTop.y,casinoTop.z,casinoYaw,casinoRoof);
+    for(let i=0;i<11;i++){
+        const along=-27+i*5.4;
+        const cp=frame(casinoD,along,-53,6.5);
+        const col=new THREE.Mesh(new THREE.CylinderGeometry(.65,.85,13,10),casinoGold);
+        col.position.set(cp.x,cp.y,cp.z);col.rotation.z=0;monacoWorld.add(col);
+    }
+    const dome=frame(casinoD,0,-73,22);
+    const casinoDome=new THREE.Mesh(new THREE.SphereGeometry(8,18,12,0,Math.PI*2,0,Math.PI/2),casinoGold);
+    casinoDome.position.set(dome.x,dome.y+1,dome.z);monacoWorld.add(casinoDome);
+    registerSceneryFootprint(casino.x,casino.z,52);
+
+    /* Hotel de Paris / high-rise waterfront skyline, set back
+       from the circuit and facing the harbour. */
+    const hotelD=getTrackSample(520);
+    const hotel=frame(hotelD,35,112,0);
+    const hotelMat=new THREE.MeshStandardMaterial({color:0xd8c7b2,roughness:.8});
+    const hotelGlass=new THREE.MeshStandardMaterial({color:0x466878,metalness:.45,roughness:.25});
+    box(42,72,34,hotel.x,36,hotel.z,getTrackTangentAngle(hotelD),hotelMat);
+    for(let f=0;f<13;f++){
+        const y=7+f*5.1;
+        const band=frame(hotelD,35,94,y);
+        box(.4,2.5,32,band.x,band.y,band.z,getTrackTangentAngle(hotelD),hotelGlass,false);
+    }
+    const hotelRoof=frame(hotelD,35,112,73);
+    box(45,2,37,hotelRoof.x,hotelRoof.y,hotelRoof.z,getTrackTangentAngle(hotelD),casinoRoof);
+
+    /* Tunnel through the rock: dark side walls, concrete
+       roof, repeated warm lamps and a bright exit portal. */
+    const tunnelStart=790,tunnelEnd=1085;
+    const tunnelWallMat=new THREE.MeshStandardMaterial({color:0x555c61,roughness:.88});
+    const tunnelRoofMat=new THREE.MeshStandardMaterial({color:0x454b50,roughness:.9});
+    const lampMat=new THREE.MeshStandardMaterial({color:0xffe6ad,emissive:0xffcf7b,emissiveIntensity:1.35});
+    for(let i=tunnelStart;i<tunnelEnd;i+=8){
+        const d=getTrackSample(i),yaw=getTrackTangentAngle(d);
+        const length=METERS_PER_SAMPLE*8.5;
+        for(const side of [-1,1]){
+            const p=d.p.clone().addScaledVector(d.normal,side*14.6);
+            box(.9,9.2,length,p.x,4.5,p.z,yaw,tunnelWallMat);
+        }
+        box(31.5,1.2,length,d.p.x,9.2,d.p.z,yaw,tunnelRoofMat,false);
+        if(i%24===6){
+            const lightPos=d.p.clone();lightPos.y=8.45;
+            const light=new THREE.Mesh(new THREE.BoxGeometry(3,.18,1.1),lampMat);
+            light.position.copy(lightPos);light.rotation.y=yaw;monacoWorld.add(light);
+        }
+    }
+    const tunnelPortalD=getTrackSample(tunnelStart);
+    const portal=frame(tunnelPortalD,0,0,4.8);
+    box(29,10,2,portal.x,portal.y,portal.z,getTrackTangentAngle(tunnelPortalD),tunnelWallMat,false);
+
+    /* Small grandstands and packed spectator rows at the
+       Sainte Devote approach and Swimming Pool complex. */
+    const crowdGeo=new THREE.BoxGeometry(.48,1,.42);
+    const crowdMat=new THREE.MeshStandardMaterial({roughness:.96});
+    const crowd=new THREE.InstancedMesh(crowdGeo,crowdMat,950);
+    const crowdObj=new THREE.Object3D();let crowdCount=0;
+    for(const spec of [{index:90,lat:27,width:58},{index:1290,lat:-29,width:72},{index:1390,lat:30,width:52}]){
+        const d=getTrackSample(spec.index),yaw=getTrackTangentAngle(d);
+        const base=frame(d,0,spec.lat,0);
+        box(18,3,spec.width+10,base.x,1.5,base.z,yaw,pitConcrete);
+        for(let tier=0;tier<4;tier++){
+            for(let n=0;n<Math.floor(spec.width/1.4);n++){
+                if(crowdCount>=950)break;
+                const along=-spec.width/2+n*1.4;
+                const p=frame(d,along,spec.lat+(spec.lat>0?1:-1)*(tier*2.8+3),4+tier*1.35);
+                crowdObj.position.set(p.x,p.y,p.z);crowdObj.rotation.set(0,yaw,0);
+                crowdObj.scale.set(1,.75+getTrackNoise(n,tier+1851)*.6,1);
+                crowdObj.updateMatrix();crowd.setMatrixAt(crowdCount,crowdObj.matrix);
+                crowd.setColorAt(crowdCount,new THREE.Color().setHSL(getTrackNoise(n,tier+1857),.35,.32+getTrackNoise(tier,n+1861)*.3));
+                crowdCount++;
+            }
+        }
+    }
+    crowd.count=crowdCount;crowd.instanceMatrix.needsUpdate=true;
+    if(crowd.instanceColor)crowd.instanceColor.needsUpdate=true;
+    monacoWorld.add(crowd);
+
+    /* Street lamps, marshal posts, sponsor boards and
+       braking-distance markers complete the urban circuit. */
+    const lampPoleMat=new THREE.MeshStandardMaterial({color:0x343a3d,metalness:.5,roughness:.65});
+    const signMat=new THREE.MeshStandardMaterial({color:0xf0eee6,roughness:.72});
+    const signCanvas=document.createElement("canvas");signCanvas.width=256;signCanvas.height=96;
+    const signCtx=signCanvas.getContext("2d");signCtx.fillStyle="#e10600";signCtx.fillRect(0,0,256,96);
+    signCtx.fillStyle="#ffffff";signCtx.font="bold 42px Arial";signCtx.textAlign="center";signCtx.textBaseline="middle";
+    signCtx.fillText("APEX GP",128,49);
+    const signTex=new THREE.CanvasTexture(signCanvas);signTex.colorSpace=THREE.SRGBColorSpace;
+    const apexSignMat=new THREE.MeshStandardMaterial({map:signTex,roughness:.68});
+    for(let i=40;i<TRACK_SAMPLES;i+=100){
+        const d=getTrackSample(i),side=i%2?1:-1;
+        const p=frame(d,0,side*19,0);
+        box(.55,10,.55,p.x,5,p.z,getTrackTangentAngle(d),lampPoleMat);
+        const head=frame(d,0,side*19,10);
+        box(2,.35,1,head.x,head.y,head.z,getTrackTangentAngle(d),lampPoleMat);
+        if(i%200===40){
+            const board=frame(d,0,-side*17,2.1);
+            box(8,2.4,.3,board.x,board.y,board.z,getTrackTangentAngle(d)+Math.PI,apexSignMat,false);
+        }
+    }
+
+    /* Start gantry and checkered timing stripe. */
+    const start=getTrackSample(0),startYaw=getTrackTangentAngle(start);
+    const gantryMat=new THREE.MeshStandardMaterial({color:0x252b31,metalness:.62,roughness:.42});
+    const gantry=frame(start,0,0,9);
+    box(1.2,1.1,MONACO_TRACK_HALF_WIDTH*2+7,gantry.x,gantry.y,gantry.z,startYaw,gantryMat);
+    for(const side of [-1,1]){
+        const leg=frame(start,0,side*(MONACO_TRACK_HALF_WIDTH+3),4.5);
+        box(.9,9,.9,leg.x,leg.y,leg.z,startYaw,gantryMat);
+    }
+
+    footprintsByTrack.monaco=sceneryFootprints.slice();
+    activeWorldGroup=jeddahWorld;
+    setActiveTrackData("jeddah");
+    restoreFootprints("jeddah");
+    monacoWorldBuilt=true;
+    monacoWorld.visible=false;
+    console.log("[TRACK] Monaco world ready: 3.337 km street circuit, Monte-Carlo blocks, Casino, tunnel and Port Hercule marina");
+}
+
+
 function setActiveTrack(id){
 
-    const next=id==="spa"?"spa":id==="monza"?"monza":"jeddah";
+    const next=id==="spa"?"spa":id==="monza"?"monza":id==="monaco"?"monaco":"jeddah";
     if(next==="spa"){
 
         try{
@@ -36560,6 +37036,11 @@ function setActiveTrack(id){
             console.warn("[TRACK] Monza build failed, staying put:",buildError);return false;
         }
     }
+    if(next==="monaco"){
+        try{loadMonacoWorld();}catch(buildError){
+            console.warn("[TRACK] Monaco build failed, staying put:",buildError);return false;
+        }
+    }
     if(
         next===activeTrackId&&
         (
@@ -36567,7 +37048,9 @@ function setActiveTrack(id){
                 ?spaWorld.visible
                 :next==="monza"
                     ?monzaWorld.visible
-                    :jeddahWorld.visible
+                    :next==="monaco"
+                        ?monacoWorld.visible
+                        :jeddahWorld.visible
         )
     ){
         return false;
@@ -36592,7 +37075,8 @@ function setActiveTrack(id){
 
         spaWorld.visible=next==="spa";
         monzaWorld.visible=next==="monza";
-        activeWorldGroup=next==="spa"?spaWorld:next==="monza"?monzaWorld:jeddahWorld;
+        monacoWorld.visible=next==="monaco";
+        activeWorldGroup=next==="spa"?spaWorld:next==="monza"?monzaWorld:next==="monaco"?monacoWorld:jeddahWorld;
 
         rebuildPitDynamics();
 
@@ -36615,7 +37099,9 @@ function setActiveTrack(id){
             groundMaterial.color.set(
                 next==="spa"||next==="monza"
                     ?0x9fbf7a
-                    :0xffffff
+                    :next==="monaco"
+                        ?0xb7b3aa
+                        :0xffffff
             );
 
         }
@@ -36657,7 +37143,8 @@ function setActiveTrack(id){
 
         spaWorld.visible=prevTrack==="spa";
         monzaWorld.visible=prevTrack==="monza";
-        activeWorldGroup=prevTrack==="spa"?spaWorld:prevTrack==="monza"?monzaWorld:jeddahWorld;
+        monacoWorld.visible=prevTrack==="monaco";
+        activeWorldGroup=prevTrack==="spa"?spaWorld:prevTrack==="monza"?monzaWorld:prevTrack==="monaco"?monacoWorld:jeddahWorld;
 
         return false;
 
@@ -47332,6 +47819,16 @@ const TRACKS=[
         lengthKm:"5.79 KM",
         playable:true,
         blurb:"Autodromo Nazionale Monza. Flat-out through Curva Grande, heavy braking for the Rettifilo and Roggia chicanes, the two Lesmos, Ascari and the Parabolica."
+    },
+    {
+        id:"monaco",
+        name:"MONACO",
+        location:"MONTE-CARLO, MONACO",
+        corners:19,
+        rounds:TOTAL_LAPS,
+        lengthKm:"3.34 KM",
+        playable:true,
+        blurb:"Circuit de Monaco. A narrow 3.337 km street circuit through Sainte Devote, Casino Square, the Fairmont hairpin, the harbour tunnel, Swimming Pool and Rascasse, lined by the buildings and marina of Monte-Carlo."
     }
 ];
 
@@ -49289,7 +49786,8 @@ function selectTrack(
        fall back to Jeddah instead of showing one
        circuit while simulating another */
     if((track.id==="spa"&&activeTrackId!=="spa")||
-       (track.id==="monza"&&activeTrackId!=="monza")){
+       (track.id==="monza"&&activeTrackId!=="monza")||
+       (track.id==="monaco"&&activeTrackId!=="monaco")){
         selectTrack("jeddah");return;
     }
 
