@@ -36901,7 +36901,7 @@ function updatePitSystem(dt){
 
     playerPit.inPit=
         playerPit.nearPath&&
-        info.lateral>30&&
+        PIT_SIDE*info.lateral>30&&
         isInPitCorridor(info.index);
 
     if(!playerPit.inPit){
@@ -37677,7 +37677,7 @@ function maybeStartPlayer2Pit(ai){
 
     if(
         !info||
-        info.lateral<=30||
+        PIT_SIDE*info.lateral<=30||
         !isInPitCorridor(info.index)
     ){
         return;
