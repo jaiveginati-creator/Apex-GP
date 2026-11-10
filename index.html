@@ -26992,8 +26992,8 @@ function setActiveTrackData(id){
     PIT_SIDE=isMonza?-1:1;
     /* Monza's pit lane must sit outside the widened racing
        surface. Keep the entry/exit tapers just beyond the edge. */
-    PIT_LANE_PATH_LATERAL=isMonza?29:DEFAULT_PIT_LANE_PATH_LATERAL;
-    PIT_BOX_LATERAL=isMonza?35.5:DEFAULT_PIT_BOX_LATERAL;
+    PIT_LANE_PATH_LATERAL=isMonza?49:DEFAULT_PIT_LANE_PATH_LATERAL;
+    PIT_BOX_LATERAL=isMonza?55.5:DEFAULT_PIT_BOX_LATERAL;
     PIT_ENTRY_LATERAL=isMonza?23:DEFAULT_PIT_ENTRY_LATERAL;
     PIT_EXIT_LATERAL=isMonza?23:DEFAULT_PIT_EXIT_LATERAL;
 
@@ -35517,7 +35517,7 @@ function loadMonzaWorld(){
        than a featureless green plane. Keep the road shelf
        below the asphalt so the racing surface never z-fights.
        ----------------------------------------------------- */
-    const margin=570;
+    const margin=780;
     const groundW=trackBounds.maxX-trackBounds.minX+margin*2;
     const groundD=trackBounds.maxZ-trackBounds.minZ+margin*2;
     const centerX=(trackBounds.maxX+trackBounds.minX)/2;
@@ -35993,7 +35993,7 @@ function loadMonzaWorld(){
        shuffled candidate field across the whole park so
        vegetation density is not biased toward one edge.
        ----------------------------------------------------- */
-    const TREE_CAP=4200;
+    const TREE_CAP=6000;
     const trunkGeo=new THREE.CylinderGeometry(.34,.82,10,9);
     const trunkMat=new THREE.MeshStandardMaterial({color:0x6a4a32,roughness:1});
     const trunks=new THREE.InstancedMesh(trunkGeo,trunkMat,TREE_CAP);
@@ -36010,12 +36010,12 @@ function loadMonzaWorld(){
     let treeCount=0;
     const treeKindCounts=treeKinds.map(()=>0);
     const treeCandidates=[];
-    for(let x=trackBounds.minX-margin+42;x<trackBounds.maxX+margin-42;x+=43){
-        for(let z=trackBounds.minZ-margin+42;z<trackBounds.maxZ+margin-42;z+=43){
+    for(let x=trackBounds.minX-margin+42;x<trackBounds.maxX+margin-42;x+=34){
+        for(let z=trackBounds.minZ-margin+42;z<trackBounds.maxZ+margin-42;z+=34){
             const key=treeCandidates.length+1;
             treeCandidates.push([
-                x+(getTrackNoise(key,771)-.5)*30,
-                z+(getTrackNoise(key,993)-.5)*30,
+                x+(getTrackNoise(key,771)-.5)*24,
+                z+(getTrackNoise(key,993)-.5)*24,
                 key
             ]);
         }
@@ -36078,10 +36078,10 @@ function loadMonzaWorld(){
     /* Dense understory fills the gaps between mature trees. */
     const underGeo=new THREE.IcosahedronGeometry(2.8,1);
     const underMat=new THREE.MeshStandardMaterial({color:0x52783d,roughness:1});
-    const undergrowth=new THREE.InstancedMesh(underGeo,underMat,5200);
+    const undergrowth=new THREE.InstancedMesh(underGeo,underMat,7000);
     const underObj=new THREE.Object3D();
     let underCount=0;
-    for(let i=0;i<treeCount&&underCount<5200;i++){
+    for(let i=0;i<treeCount&&underCount<7000;i++){
         if(i%2!==0)continue;
         const d=treeCandidates[i];
         const tx=d[0]+(getTrackNoise(i,1311)-.5)*17;
@@ -36105,12 +36105,12 @@ function loadMonzaWorld(){
     /* Fine grass, low plants and scattered wildflowers. */
     const grassGeo=new THREE.ConeGeometry(.38,1.65,4,1);
     const grassMat=new THREE.MeshStandardMaterial({color:0x78944b,roughness:1});
-    const grassInstances=new THREE.InstancedMesh(grassGeo,grassMat,15000);
+    const grassInstances=new THREE.InstancedMesh(grassGeo,grassMat,19000);
     const flowerGeo=new THREE.SphereGeometry(.48,6,5);
     const flowerMat=new THREE.MeshStandardMaterial({color:0xd6c7a2,roughness:1});
-    const flowers=new THREE.InstancedMesh(flowerGeo,flowerMat,1700);
+    const flowers=new THREE.InstancedMesh(flowerGeo,flowerMat,2300);
     let grassCount=0,flowerCount=0;
-    for(let i=0;i<22000&&grassCount<15000;i++){
+    for(let i=0;i<30000&&grassCount<19000;i++){
         const gx=trackBounds.minX-margin+getTrackNoise(i,1401)*groundW;
         const gz=trackBounds.minZ-margin+getTrackNoise(i,1409)*groundD;
         if(distanceToTrackXZ(gx,gz)<58)continue;
@@ -36123,7 +36123,7 @@ function loadMonzaWorld(){
         grassInstances.setMatrixAt(grassCount,treeObj.matrix);
         grassInstances.setColorAt(grassCount,new THREE.Color().setHSL(.22+getTrackNoise(i,1429)*.1,.38,.25+getTrackNoise(i,1433)*.2));
         grassCount++;
-        if(i%11===0&&flowerCount<1700){
+        if(i%11===0&&flowerCount<2300){
             treeObj.position.set(gx,h+.42,gz);
             treeObj.scale.setScalar(.65+getTrackNoise(i,1439)*.7);
             treeObj.updateMatrix();
