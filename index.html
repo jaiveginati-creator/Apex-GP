@@ -18920,6 +18920,32 @@ function getAILateralOffset(
 }
 
 
+/* Convert the corner planner's physical speed target into the
+   final target, respecting the tyre ceiling without imposing
+   an artificial minimum speed. Tight corners must be allowed
+   to slow the AI just as they slow the player's car. */
+function getAICornerTargetSpeed(cornerPlan,wearTop){
+
+    const plannedSpeed=
+        Number.isFinite(
+            cornerPlan&&cornerPlan.targetSpeed
+        )
+            ?Math.max(0,cornerPlan.targetSpeed)
+            :AI_TARGET_SPEED;
+
+    const tyreCeiling=
+        Number.isFinite(wearTop)
+            ?Math.max(0,wearTop)
+            :AI_TARGET_SPEED;
+
+    return Math.min(
+        plannedSpeed,
+        tyreCeiling
+    );
+
+}
+
+
 function getAICornerPlan(
     ai,
     index
@@ -23546,12 +23572,9 @@ function updateAI(dt){
             );
 
         const targetSpeed=
-            Math.min(
-                wearTop,
-                Math.max(
-                    cornerPlan.targetSpeed,
-                    AI_TARGET_SPEED*.78
-                )
+            getAICornerTargetSpeed(
+                cornerPlan,
+                wearTop
             );
 
         const speedCeiling=
