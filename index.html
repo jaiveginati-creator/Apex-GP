@@ -35882,6 +35882,7 @@ function loadMonzaWorld(){
     const treeObj=new THREE.Object3D();
     const forestGroundY=(x,z)=>-1.15+Math.sin(x*.002+z*.001)*.22;
     let treeCount=0;
+    const treeKindCounts=treeKinds.map(()=>0);
     const treeCandidates=[];
     for(let x=trackBounds.minX-margin+42;x<trackBounds.maxX+margin-42;x+=43){
         for(let z=trackBounds.minZ-margin+42;z<trackBounds.maxZ+margin-42;z+=43){
@@ -35922,13 +35923,14 @@ function loadMonzaWorld(){
         treeObj.position.set(tx,h+10.2*scale,tz);
         treeObj.scale.set(1.08*scale,1.28*scale,1.08*scale);
         treeObj.updateMatrix();
-        treeCrowns[kind].setMatrixAt(treeCount,treeObj.matrix);
-        treeCrowns[kind].setColorAt(treeCount,new THREE.Color().setHSL(.255+seed*.055,.32,.22+seed*.13));
+        const kindIndex=treeKindCounts[kind]++;
+        treeCrowns[kind].setMatrixAt(kindIndex,treeObj.matrix);
+        treeCrowns[kind].setColorAt(kindIndex,new THREE.Color().setHSL(.255+seed*.055,.32,.22+seed*.13));
         treeObj.position.set(tx+(seed-.5)*5*scale,h+8.2*scale,tz+(getTrackNoise(key,1213)-.5)*5*scale);
         treeObj.scale.set(.7*scale,.78*scale,.72*scale);
         treeObj.updateMatrix();
-        treeCrownLayers[kind].setMatrixAt(treeCount,treeObj.matrix);
-        treeCrownLayers[kind].setColorAt(treeCount,new THREE.Color().setHSL(.27+seed*.045,.36,.25+seed*.12));
+        treeCrownLayers[kind].setMatrixAt(kindIndex,treeObj.matrix);
+        treeCrownLayers[kind].setColorAt(kindIndex,new THREE.Color().setHSL(.27+seed*.045,.36,.25+seed*.12));
         treeCount++;
     }
     trunks.count=treeCount;
@@ -35937,8 +35939,8 @@ function loadMonzaWorld(){
     trunks.castShadow=true;
     monzaWorld.add(trunks);
     for(let k=0;k<treeKinds.length;k++){
-        treeCrowns[k].count=treeCount;
-        treeCrownLayers[k].count=treeCount;
+        treeCrowns[k].count=treeKindCounts[k];
+        treeCrownLayers[k].count=treeKindCounts[k];
         treeCrowns[k].instanceMatrix.needsUpdate=true;
         treeCrownLayers[k].instanceMatrix.needsUpdate=true;
         if(treeCrowns[k].instanceColor)treeCrowns[k].instanceColor.needsUpdate=true;
