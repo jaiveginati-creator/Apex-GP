@@ -35863,63 +35863,154 @@ function loadMonzaWorld(){
     monzaWorld.add(crowd);
 
     /* -----------------------------------------------------
-       MONZA PARK — dense mature trees, understory and
-       clearings. Deterministic instancing keeps performance
-       stable while avoiding trees close to the racing line.
+       MONZA ROYAL PARK — dense, varied woodland. Build a
+       shuffled candidate field across the whole park so
+       vegetation density is not biased toward one edge.
        ----------------------------------------------------- */
-    const trunkGeo=new THREE.CylinderGeometry(.45,.8,10,8);
-    const crownGeo=new THREE.IcosahedronGeometry(6.5,2);
-    const trunkMat=new THREE.MeshStandardMaterial({color:0x55402d,roughness:1});
-    const crownMat=new THREE.MeshStandardMaterial({color:0x315a32,roughness:1});
-    const trunks=new THREE.InstancedMesh(trunkGeo,trunkMat,720);
-    const crowns=new THREE.InstancedMesh(crownGeo,crownMat,720);
-    const underGeo=new THREE.IcosahedronGeometry(2.8,1);
-    const underMat=new THREE.MeshStandardMaterial({color:0x496d38,roughness:1});
-    const undergrowth=new THREE.InstancedMesh(underGeo,underMat,520);
+    const TREE_CAP=4200;
+    const trunkGeo=new THREE.CylinderGeometry(.34,.82,10,9);
+    const trunkMat=new THREE.MeshStandardMaterial({color:0x6a4a32,roughness:1});
+    const trunks=new THREE.InstancedMesh(trunkGeo,trunkMat,TREE_CAP);
+    const treeKinds=[
+        {geo:new THREE.SphereGeometry(6.8,10,8),mat:new THREE.MeshStandardMaterial({color:0x466b39,roughness:1})},
+        {geo:new THREE.IcosahedronGeometry(7.2,2),mat:new THREE.MeshStandardMaterial({color:0x365f32,roughness:1})},
+        {geo:new THREE.ConeGeometry(6.1,15,9,2),mat:new THREE.MeshStandardMaterial({color:0x315a35,roughness:1})},
+        {geo:new THREE.SphereGeometry(7.8,9,7),mat:new THREE.MeshStandardMaterial({color:0x587842,roughness:1})}
+    ];
+    const treeCrowns=treeKinds.map(k=>new THREE.InstancedMesh(k.geo,k.mat,TREE_CAP));
+    const treeCrownLayers=treeKinds.map(k=>new THREE.InstancedMesh(k.geo,k.mat,TREE_CAP));
     const treeObj=new THREE.Object3D();
-    let treeCount=0,underCount=0;
-    for(let x=trackBounds.minX-margin+55;x<trackBounds.maxX+margin-55&&treeCount<720;x+=78){
-        for(let z=trackBounds.minZ-margin+55;z<trackBounds.maxZ+margin-55&&treeCount<720;z+=83){
-            const seed=Math.abs(Math.sin(x*12.9898+z*78.233)*43758.5453);
-            const jx=(seed-Math.floor(seed)-.5)*42;
-            const jz=(Math.abs(Math.sin(seed*91.7)*10000)%1-.5)*42;
-            const tx=x+jx,tz=z+jz;
-            if(distanceToTrackXZ(tx,tz)<105)continue;
-            if(Math.abs(tx-centerX)<125&&Math.abs(tz-centerZ)<105)continue;
-            let overlapsStructure=false;
-            for(const fp of sceneryFootprints){
-                const dx=tx-fp.x,dz=tz-fp.z;
-                if(dx*dx+dz*dz<(fp.radius+16)*(fp.radius+16)){
-                    overlapsStructure=true;break;
-                }
-            }
-            if(overlapsStructure)continue;
-            const h=spaTerrainHeightAt(tx,tz);
-            const scale=.72+(seed%1)*.78;
-            treeObj.position.set(tx,h+5*scale,tz);
-            treeObj.rotation.set(0,seed*6.28,0);
-            treeObj.scale.set(scale,scale,scale);
-            treeObj.updateMatrix();trunks.setMatrixAt(treeCount,treeObj.matrix);
-            treeObj.position.y=h+11*scale;
-            treeObj.scale.set(1.2*scale,1.35*scale,1.2*scale);
-            treeObj.updateMatrix();crowns.setMatrixAt(treeCount,treeObj.matrix);
-            if(trunks.instanceColor)trunks.setColorAt(treeCount,new THREE.Color().setHSL(.075,.22,.22+seed*.08));
-            if(crowns.instanceColor)crowns.setColorAt(treeCount,new THREE.Color().setHSL(.27,.34,.22+seed*.12));
-            treeCount++;
-            if(treeCount%2===0&&underCount<520){
-                treeObj.position.set(tx+12,h+1.5,tz-8);
-                treeObj.scale.setScalar(.8+(seed%1)*.6);
-                treeObj.updateMatrix();undergrowth.setMatrixAt(underCount++,treeObj.matrix);
-            }
+    const forestGroundY=(x,z)=>-1.15+Math.sin(x*.002+z*.001)*.22;
+    let treeCount=0;
+    const treeCandidates=[];
+    for(let x=trackBounds.minX-margin+42;x<trackBounds.maxX+margin-42;x+=43){
+        for(let z=trackBounds.minZ-margin+42;z<trackBounds.maxZ+margin-42;z+=43){
+            const key=treeCandidates.length+1;
+            treeCandidates.push([
+                x+(getTrackNoise(key,771)-.5)*30,
+                z+(getTrackNoise(key,993)-.5)*30,
+                key
+            ]);
         }
     }
-    trunks.count=treeCount;crowns.count=treeCount;undergrowth.count=underCount;
-    trunks.instanceMatrix.needsUpdate=true;crowns.instanceMatrix.needsUpdate=true;
-    undergrowth.instanceMatrix.needsUpdate=true;
+    treeCandidates.sort((a,b)=>getTrackNoise(a[2],1171)-getTrackNoise(b[2],1171));
+    for(const candidate of treeCandidates){
+        if(treeCount>=TREE_CAP)break;
+        const [tx,tz,key]=candidate;
+        const groveNoise=Math.sin(tx*.0018+Math.cos(tz*.0012))*Math.cos(tz*.0017-tx*.0008);
+        if(groveNoise<-.48&&getTrackNoise(key,1183)>.22)continue;
+        if(distanceToTrackXZ(tx,tz)<112)continue;
+        if(Math.abs(tx-centerX)<125&&Math.abs(tz-centerZ)<105)continue;
+        let overlapsStructure=false;
+        for(const fp of sceneryFootprints){
+            const dx=tx-fp.x,dz=tz-fp.z;
+            if(dx*dx+dz*dz<(fp.radius+19)*(fp.radius+19)){
+                overlapsStructure=true;break;
+            }
+        }
+        if(overlapsStructure)continue;
+        const h=spaTerrainHeightAt(tx,tz);
+        const seed=getTrackNoise(key,1201);
+        const scale=.78+getTrackNoise(key,1207)*.9;
+        const kind=Math.min(treeKinds.length-1,Math.floor(seed*treeKinds.length));
+        treeObj.position.set(tx,h+5*scale,tz);
+        treeObj.rotation.set(0,seed*Math.PI*2,0);
+        treeObj.scale.set(.78*scale,scale,.78*scale);
+        treeObj.updateMatrix();
+        trunks.setMatrixAt(treeCount,treeObj.matrix);
+        trunks.setColorAt(treeCount,new THREE.Color().setHSL(.075,.22,.20+seed*.09));
+        treeObj.position.set(tx,h+10.2*scale,tz);
+        treeObj.scale.set(1.08*scale,1.28*scale,1.08*scale);
+        treeObj.updateMatrix();
+        treeCrowns[kind].setMatrixAt(treeCount,treeObj.matrix);
+        treeCrowns[kind].setColorAt(treeCount,new THREE.Color().setHSL(.255+seed*.055,.32,.22+seed*.13));
+        treeObj.position.set(tx+(seed-.5)*5*scale,h+8.2*scale,tz+(getTrackNoise(key,1213)-.5)*5*scale);
+        treeObj.scale.set(.7*scale,.78*scale,.72*scale);
+        treeObj.updateMatrix();
+        treeCrownLayers[kind].setMatrixAt(treeCount,treeObj.matrix);
+        treeCrownLayers[kind].setColorAt(treeCount,new THREE.Color().setHSL(.27+seed*.045,.36,.25+seed*.12));
+        treeCount++;
+    }
+    trunks.count=treeCount;
+    trunks.instanceMatrix.needsUpdate=true;
     if(trunks.instanceColor)trunks.instanceColor.needsUpdate=true;
-    if(crowns.instanceColor)crowns.instanceColor.needsUpdate=true;
-    trunks.castShadow=true;crowns.castShadow=true;
-    monzaWorld.add(trunks,crowns,undergrowth);
+    trunks.castShadow=true;
+    monzaWorld.add(trunks);
+    for(let k=0;k<treeKinds.length;k++){
+        treeCrowns[k].count=treeCount;
+        treeCrownLayers[k].count=treeCount;
+        treeCrowns[k].instanceMatrix.needsUpdate=true;
+        treeCrownLayers[k].instanceMatrix.needsUpdate=true;
+        if(treeCrowns[k].instanceColor)treeCrowns[k].instanceColor.needsUpdate=true;
+        if(treeCrownLayers[k].instanceColor)treeCrownLayers[k].instanceColor.needsUpdate=true;
+        treeCrowns[k].castShadow=true;
+        monzaWorld.add(treeCrowns[k],treeCrownLayers[k]);
+    }
+
+    /* Dense understory fills the gaps between mature trees. */
+    const underGeo=new THREE.IcosahedronGeometry(2.8,1);
+    const underMat=new THREE.MeshStandardMaterial({color:0x52783d,roughness:1});
+    const undergrowth=new THREE.InstancedMesh(underGeo,underMat,5200);
+    const underObj=new THREE.Object3D();
+    let underCount=0;
+    for(let i=0;i<treeCount&&underCount<5200;i++){
+        if(i%2!==0)continue;
+        const d=treeCandidates[i];
+        const tx=d[0]+(getTrackNoise(i,1311)-.5)*17;
+        const tz=d[1]+(getTrackNoise(i,1319)-.5)*17;
+        if(distanceToTrackXZ(tx,tz)<88)continue;
+        const h=forestGroundY(tx,tz);
+        const s=.65+getTrackNoise(i,1327)*1.25;
+        underObj.position.set(tx,h+1.4*s,tz);
+        underObj.rotation.set(getTrackNoise(i,1331)*.25,getTrackNoise(i,1337)*6.28,0);
+        underObj.scale.set(1.2*s,.72*s,1.1*s);
+        underObj.updateMatrix();
+        undergrowth.setMatrixAt(underCount,underObj.matrix);
+        undergrowth.setColorAt(underCount,new THREE.Color().setHSL(.25+getTrackNoise(i,1341)*.07,.36,.22+getTrackNoise(i,1347)*.14));
+        underCount++;
+    }
+    undergrowth.count=underCount;
+    undergrowth.instanceMatrix.needsUpdate=true;
+    if(undergrowth.instanceColor)undergrowth.instanceColor.needsUpdate=true;
+    monzaWorld.add(undergrowth);
+
+    /* Fine grass, low plants and scattered wildflowers. */
+    const grassGeo=new THREE.ConeGeometry(.38,1.65,4,1);
+    const grassMat=new THREE.MeshStandardMaterial({color:0x78944b,roughness:1});
+    const grassInstances=new THREE.InstancedMesh(grassGeo,grassMat,15000);
+    const flowerGeo=new THREE.SphereGeometry(.48,6,5);
+    const flowerMat=new THREE.MeshStandardMaterial({color:0xd6c7a2,roughness:1});
+    const flowers=new THREE.InstancedMesh(flowerGeo,flowerMat,1700);
+    let grassCount=0,flowerCount=0;
+    for(let i=0;i<22000&&grassCount<15000;i++){
+        const gx=trackBounds.minX-margin+getTrackNoise(i,1401)*groundW;
+        const gz=trackBounds.minZ-margin+getTrackNoise(i,1409)*groundD;
+        if(distanceToTrackXZ(gx,gz)<58)continue;
+        const h=forestGroundY(gx,gz);
+        const s=.55+getTrackNoise(i,1417)*1.45;
+        treeObj.position.set(gx,h+.65*s,gz);
+        treeObj.rotation.set(0,getTrackNoise(i,1423)*6.28,0);
+        treeObj.scale.set(s,s,s);
+        treeObj.updateMatrix();
+        grassInstances.setMatrixAt(grassCount,treeObj.matrix);
+        grassInstances.setColorAt(grassCount,new THREE.Color().setHSL(.22+getTrackNoise(i,1429)*.1,.38,.25+getTrackNoise(i,1433)*.2));
+        grassCount++;
+        if(i%11===0&&flowerCount<1700){
+            treeObj.position.set(gx,h+.42,gz);
+            treeObj.scale.setScalar(.65+getTrackNoise(i,1439)*.7);
+            treeObj.updateMatrix();
+            flowers.setMatrixAt(flowerCount,treeObj.matrix);
+            flowers.setColorAt(flowerCount,new THREE.Color().setHSL(getTrackNoise(i,1447)>.5?.12:.88,.42,.62));
+            flowerCount++;
+        }
+    }
+    grassInstances.count=grassCount;
+    flowers.count=flowerCount;
+    grassInstances.instanceMatrix.needsUpdate=true;
+    flowers.instanceMatrix.needsUpdate=true;
+    if(grassInstances.instanceColor)grassInstances.instanceColor.needsUpdate=true;
+    if(flowers.instanceColor)flowers.instanceColor.needsUpdate=true;
+    monzaWorld.add(grassInstances,flowers);
 
     /* Smaller perimeter detail: marshal shelters, light
        masts, access gates, tyre stacks and direction boards. */
