@@ -35992,17 +35992,17 @@ function loadMonzaWorld(){
        MONZA ROYAL PARK — reuse Spa's exact three tree meshes.
        Only the placement field is Monza-specific.
        ----------------------------------------------------- */
-    const MONZA_TREE_CAP=6000;
+    const MONZA_TREE_CAP=18000;
     const treeObj=new THREE.Object3D();
     const forestGroundY=(x,z)=>spaTerrainHeightAt(x,z);
     let treeCount=0;
     const treeCandidates=[];
-    for(let x=trackBounds.minX-margin+42;x<trackBounds.maxX+margin-42;x+=34){
+    for(let x=trackBounds.minX-margin+42;x<trackBounds.maxX+margin-42;x+=18){
         for(let z=trackBounds.minZ-margin+42;z<trackBounds.maxZ+margin-42;z+=34){
             const key=treeCandidates.length+1;
             treeCandidates.push([
-                x+(getTrackNoise(key,771)-.5)*24,
-                z+(getTrackNoise(key,993)-.5)*24,
+                x+(getTrackNoise(key,771)-.5)*12,
+                z+(getTrackNoise(key,993)-.5)*12,
                 key
             ]);
         }
@@ -36334,7 +36334,7 @@ function loadMonzaWorld(){
         const [tx,tz,key]=candidate;
         const groveNoise=Math.sin(tx*.0018+Math.cos(tz*.0012))*Math.cos(tz*.0017-tx*.0008);
         if(groveNoise<-.48&&getTrackNoise(key,1183)>.22)continue;
-        if(distanceToTrackXZ(tx,tz)<112)continue;
+        if(distanceToTrackXZ(tx,tz)<54)continue;
         if(Math.abs(tx-centerX)<125&&Math.abs(tz-centerZ)<105)continue;
         let overlapsStructure=false;
         for(const fp of sceneryFootprints){

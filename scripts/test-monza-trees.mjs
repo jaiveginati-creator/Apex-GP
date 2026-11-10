@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 
 const html = fs.readFileSync("index.html", "utf8");
-assert.match(html, /const MONZA_TREE_CAP=6000;/, "Monza instance cap must remain unchanged");
+assert.match(html, /const MONZA_TREE_CAP=18000;/, "Monza tree capacity must support the denser forest");
+assert.match(html, /x\+=18\)/, "Monza tree grid must be denser than the previous 34m spacing");
+assert.match(html, /if\(distanceToTrackXZ\(tx,tz\)<54\)continue;/, "Monza trees should extend closer to the roadside while staying clear of the racing corridor");
 assert.match(html, /const forestGroundY=\(x,z\)=>spaTerrainHeightAt\(x,z\);/, "Monza must retain Spa terrain alignment");
 
 const expectedCanopyMasses = [
