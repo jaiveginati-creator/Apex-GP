@@ -36759,18 +36759,18 @@ function loadMonacoWorld(){
 
     const pitSample=getTrackSample(22);
     const pitYaw=getTrackTangentAngle(pitSample);
-    const pitCenter=frame(pitSample,0,PIT_SIDE*34,0);
+    const pitCenter=frame(pitSample,0,PIT_SIDE*42,0);
     const pitConcrete=new THREE.MeshStandardMaterial({color:0xc3c4c1,roughness:.78});
     const pitGlass=new THREE.MeshStandardMaterial({color:0x315365,metalness:.48,roughness:.22});
     const pitRoof=new THREE.MeshStandardMaterial({color:0x353d43,roughness:.62,metalness:.3});
     box(18,9,126,pitCenter.x,4.5,pitCenter.z,pitYaw,pitConcrete);
-    const glassPos=frame(pitSample,0,PIT_SIDE*24.5,4.5);
+    const glassPos=frame(pitSample,0,PIT_SIDE*32.5,4.5);
     box(.35,4.5,116,glassPos.x,glassPos.y,glassPos.z,pitYaw,pitGlass,false);
-    const roofPos=frame(pitSample,0,PIT_SIDE*34,9.2);
+    const roofPos=frame(pitSample,0,PIT_SIDE*42,9.2);
     box(23,1.1,134,roofPos.x,roofPos.y,roofPos.z,pitYaw,pitRoof);
     for(let i=0;i<10;i++){
         const along=-54+i*12;
-        const g=frame(pitSample,along,PIT_SIDE*23,2.3);
+        const g=frame(pitSample,along,PIT_SIDE*31.5,2.3);
         box(.3,4.4,10,g.x,g.y,g.z,pitYaw,pitGlass,false);
     }
     for(const pb of pitBoxes){
@@ -36844,7 +36844,7 @@ function loadMonacoWorld(){
         registerSceneryFootprint(x,z,Math.max(w,depth)*.65);
     };
 
-    for(let i=20;i<TRACK_SAMPLES;i+=29){
+    for(let i=160;i<1440;i+=29){
         const d=getTrackSample(i);
         for(const side of [-1,1]){
             const lat=35+getTrackNoise(i,side+1811)*18;
@@ -36929,10 +36929,10 @@ function loadMonacoWorld(){
         const d=getTrackSample(i),yaw=getTrackTangentAngle(d);
         const length=METERS_PER_SAMPLE*8.5;
         for(const side of [-1,1]){
-            const p=d.p.clone().addScaledVector(d.normal,side*13.1);
+            const p=d.p.clone().addScaledVector(d.normal,side*14.6);
             box(.9,9.2,length,p.x,4.5,p.z,yaw,tunnelWallMat);
         }
-        box(27,1.2,length,d.p.x,9.2,d.p.z,yaw,tunnelRoofMat,false);
+        box(31.5,1.2,length,d.p.x,9.2,d.p.z,yaw,tunnelRoofMat,false);
         if(i%24===6){
             const lightPos=d.p.clone();lightPos.y=8.45;
             const light=new THREE.Mesh(new THREE.BoxGeometry(3,.18,1.1),lampMat);
