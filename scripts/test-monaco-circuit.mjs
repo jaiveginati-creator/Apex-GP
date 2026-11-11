@@ -2,8 +2,7 @@ import fs from "node:fs";
 import assert from "node:assert/strict";
 
 const html = fs.readFileSync("index.html", "utf8");
-const pointsMatch = html.match(/const monacoPoints=\[([\s\S]*?)
-\];/);
+const pointsMatch = html.match(/const monacoPoints=\[([\s\S]*?)\n\];/);
 assert.ok(pointsMatch, "Monaco centreline control points must exist");
 const points = [...pointsMatch[1].matchAll(/\[\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\]/g)]
   .map(m => [Number(m[1]), Number(m[2]), Number(m[3])]);
