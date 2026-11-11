@@ -19104,20 +19104,29 @@ function updatePhysics(dt){
         !monacoPitOpening
     ){
 
-        const side=
-            -Math.sign(
-                trackInfo.lateral
-            );
+        const signedLateral=trackInfo.lateral;
+        const safeLateral=Math.sign(signedLateral)*barrierLimit;
+        const correction=signedLateral-safeLateral;
 
-        /* never leave the car outside the barrier */
+        /* Hard positional constraint: keep the car centre on the
+           track side of the glass every physics frame. This does
+           not depend on the impact cooldown or speed penalty. */
         player.position.addScaledVector(
             trackInfo.sample.normal,
-            side*
-            (
-                lateralDistance-
-                barrierLimit+.05
-            )
+            -correction
         );
+
+        /* Remove only velocity directed out through the barrier,
+           so steering can continue to slide the car along it. */
+        const outwardVelocity=
+            physics.collisionVelocity.dot(trackInfo.sample.normal)*
+            Math.sign(signedLateral);
+        if(outwardVelocity>0){
+            physics.collisionVelocity.addScaledVector(
+                trackInfo.sample.normal,
+                -Math.sign(signedLateral)*outwardVelocity
+            );
+        }
 
         /*
            One impact, one penalty. Without the cooldown
@@ -22468,16 +22477,13 @@ function updatePlayer2Drive(
         const sample=
             getTrackSample(barrierTrackIndex);
 
-        const side=
-            -Math.sign(p2lateral);
+        const safeP2Lateral=Math.sign(p2lateral)*barrierLimit;
+        const p2Correction=p2lateral-safeP2Lateral;
 
+        /* Same hard barrier constraint for the second car. */
         ai.mesh.position.addScaledVector(
             sample.normal,
-            side*
-            (
-                lateralDistance-
-                barrierLimit+.05
-            )
+            -p2Correction
         );
 
         if(ai.collisionCooldown<=0){
