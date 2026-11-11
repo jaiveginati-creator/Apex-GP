@@ -138,10 +138,14 @@ assert.match(builder,/MONACO_TRACK_HALF_WIDTH\\+4\\.6/,"Guardrails must sit outs
 assert.match(builder,/if\\(side===PIT_SIDE&&isInPitCorridor\\(i\\)\\)continue/,"Pit entry and exit must remain open");
 assert.match(builder,/monacoGuardrailPosts/,"Glass barriers must have visible support posts");
 assert.match(builder,/monacoGuardrailCaps/,"Glass barriers must have a continuous top rail");
-assert.match(html,/activeTrackId==="monaco"\s*\?MONACO_TRACK_HALF_WIDTH\+3\.6\s*:WALL_DISTANCE-1\.4/,"Player collision boundary must move to the Monaco glass guardrails");
+assert.match(html,/const signedLateral=trackInfo\.lateral;[\s\S]{0,220}const correction=signedLateral-safeLateral;/,"Player must use a signed-lateral hard positional guardrail constraint");
+assert.match(html,/player\.position\.addScaledVector\([\s\S]{0,100}-correction/,"Player must be physically clamped at the Monaco barrier");
+assert.match(html,/physics\.collisionVelocity\.dot\(trackInfo\.sample\.normal\)/,"Outward velocity must be removed at the Monaco barrier");
+assert.match(html,/activeTrackId==="monaco"\s*\?MONACO_TRACK_HALF_WIDTH\+3\.6\s*:WALL_DISTANCE-1\.4/,"Player collision boundary must align with the Monaco glass guardrails");
 assert.match(html,/const monacoPitOpening=[\s\S]{0,180}isInPitCorridor\(trackInfo\.index\)/,"Player must retain the open pit-entry guardrail gap");
 assert.match(html,/!monacoPitOpening/,"Player collision must respect the pit-entry opening");
 assert.match(html,/const barrierTrackIndex=[\s\S]{0,140}const monacoPitOpening=/,"Second-car collision must use its own track sample");
+assert.match(html,/const safeP2Lateral=Math\.sign\(p2lateral\)\*barrierLimit;[\s\S]{0,150}const p2Correction=p2lateral-safeP2Lateral;/,"Second car must use a signed-lateral hard positional guardrail constraint");
 assert.match(html,/isInPitCorridor\(barrierTrackIndex\)/,"Second-car collision must respect the pit-entry opening");
 assert.ok((html.match(/MONACO_TRACK_HALF_WIDTH\+3\.6/g)||[]).length>=2,"Both player and second-car hitboxes must use Monaco guardrail position");
 for (const removed of ["addBuilding(","buildingInstances","yachtSpots","crowdGeo","tunnelStart","Casino de Monte-Carlo","Hotel de Paris","Street lamps","TreeGeometry"]) {
