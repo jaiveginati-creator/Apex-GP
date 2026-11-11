@@ -19089,12 +19089,19 @@ function updatePhysics(dt){
        the barrier instead of sticking to it.
     */
     const barrierLimit=
-        WALL_DISTANCE-1.4;
+        activeTrackId==="monaco"
+            ?MONACO_TRACK_HALF_WIDTH+3.6
+            :WALL_DISTANCE-1.4;
+    const monacoPitOpening=
+        activeTrackId==="monaco"&&
+        Math.sign(trackInfo.lateral)===PIT_SIDE&&
+        isInPitCorridor(trackInfo.index);
 
     if(
         lateralDistance>
         barrierLimit&&
-        !playerPit.inPit
+        !playerPit.inPit&&
+        !monacoPitOpening
     ){
 
         const side=
@@ -22438,21 +22445,28 @@ function updatePlayer2Drive(
     /* barriers: Player 1's push-back and brush penalty
        on P2 state, so the human car can never leave
        the circuit through a wall */
+    const barrierTrackIndex=
+        ownTrackInfo
+            ?ownTrackInfo.index
+            :ai.index;
     const barrierLimit=
-        WALL_DISTANCE-1.4;
+        activeTrackId==="monaco"
+            ?MONACO_TRACK_HALF_WIDTH+3.6
+            :WALL_DISTANCE-1.4;
+    const monacoPitOpening=
+        activeTrackId==="monaco"&&
+        Math.sign(p2lateral)===PIT_SIDE&&
+        isInPitCorridor(barrierTrackIndex);
 
     if(
         lateralDistance>
         barrierLimit&&
-        !p2inPitLane
+        !p2inPitLane&&
+        !monacoPitOpening
     ){
 
         const sample=
-            getTrackSample(
-                ownTrackInfo
-                    ?ownTrackInfo.index
-                    :ai.index
-            );
+            getTrackSample(barrierTrackIndex);
 
         const side=
             -Math.sign(p2lateral);
