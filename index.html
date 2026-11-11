@@ -4958,8 +4958,8 @@ const monacoSourcePoints=[
 const monacoPoints=(()=>{
     const points=monacoSourcePoints.map(([x,y,z])=>[x*1.25,y,z*1.25]);
     const count=points.length;
-    const clearance=74;
-    for(let iteration=0;iteration<260;iteration++){
+    const clearance=78;
+    for(let iteration=0;iteration<300;iteration++){
         const pushX=new Float64Array(count);
         const pushZ=new Float64Array(count);
         for(let i=0;i<count;i++){
