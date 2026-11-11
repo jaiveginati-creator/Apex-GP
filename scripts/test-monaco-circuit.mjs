@@ -14,8 +14,7 @@ for (let i = 1; i < sourcePoints.length; i++) sourceLength += Math.hypot(sourceP
 sourceLength += Math.hypot(sourcePoints[0][0]-sourcePoints.at(-1)[0], sourcePoints[0][2]-sourcePoints.at(-1)[2]);
 assert.ok(sourceLength > 3300 && sourceLength < 3340, `Mapped source trace should remain approximately 3.323 km, got ${sourceLength.toFixed(1)}m`);
 
-// Reproduce the centreline-clearance pass used by the game and check
-// the normalized full-width road against every non-adjacent section.
+// Reproduce the game's clearance relaxation exactly.
 const points = sourcePoints.map(([x,y,z]) => [x*1.25,y,z*1.25]);
 const count = points.length;
 const clearance = 78;
@@ -35,10 +34,13 @@ for (let iteration=0; iteration<300; iteration++) {
       pushX[j]+=dx*amount; pushZ[j]+=dz*amount;
     }
   }
-  for (let i=0; i<count; i++) { points[i][0]+=pushX[i]; points[i][2]+=pushZ[i]; }
+  for (let i=0; i<count; i++) {
+    points[i][0]+=pushX[i];
+    points[i][2]+=pushZ[i];
+  }
 }
-for (let pass=0; pass<3; pass++) {
-  const smooth=points.map(point=>point.slice());
+for (let pass=0; pass<35; pass++) {
+  const smooth=points.map(point => point.slice());
   for (let i=0; i<count; i++) {
     const previous=points[(i+count-1)%count];
     const next=points[(i+1)%count];
@@ -47,31 +49,74 @@ for (let pass=0; pass<3; pass++) {
   }
   for (let i=0; i<count; i++) points[i]=smooth[i];
 }
+
+// Sample the actual centripetal Catmull-Rom curve, rather than the
+// straight chords between control points. This catches curve overshoot.
+function curvePoint(segment, u) {
+  const p0=points[(segment-1+count)%count];
+  const p1=points[segment%count];
+  const p2=points[(segment+1)%count];
+  const p3=points[(segment+2)%count];
+  const knot=(a,b)=>Math.pow(Math.hypot(a[0]-b[0],a[2]-b[2]),.5);
+  let dt0=knot(p0,p1), dt1=knot(p1,p2), dt2=knot(p2,p3);
+  if (dt1<1e-4) dt1=1;
+  if (dt0<1e-4) dt0=dt1;
+  if (dt2<1e-4) dt2=dt1;
+  const component=axis=>{
+    const t1=(p1[axis]-p0[axis])/dt0-(p2[axis]-p0[axis])/(dt0+dt1)+(p2[axis]-p1[axis])/dt1;
+    const t2=(p2[axis]-p1[axis])/dt1-(p3[axis]-p1[axis])/(dt1+dt2)+(p3[axis]-p2[axis])/dt2;
+    const c0=p1[axis], c1=t1;
+    const c2=-3*p1[axis]+3*p2[axis]-2*t1-t2;
+    const c3=2*p1[axis]-2*p2[axis]+t1+t2;
+    return c0+c1*u+c2*u*u+c3*u*u*u;
+  };
+  return [component(0),component(2)];
+}
+
 const samples=[];
-for (let i=0; i<count; i++) {
-  const a=points[i], b=points[(i+1)%count];
-  for (let step=0; step<8; step++) {
-    const t=step/8;
-    samples.push([a[0]+(b[0]-a[0])*t,a[2]+(b[2]-a[2])*t]);
+const samplesPerSegment=32;
+for (let segment=0; segment<count; segment++) {
+  for (let step=0; step<samplesPerSegment; step++) {
+    samples.push(curvePoint(segment,step/samplesPerSegment));
   }
 }
-let normalizedLength=0;
-for (let i=0; i<samples.length; i++) {
-  const a=samples[i], b=samples[(i+1)%samples.length];
-  normalizedLength+=Math.hypot(a[0]-b[0],a[1]-b[1]);
+let curveLength=0;
+const arc=[0];
+for (let i=1; i<samples.length; i++) {
+  curveLength+=Math.hypot(samples[i][0]-samples[i-1][0],samples[i][1]-samples[i-1][1]);
+  arc.push(curveLength);
 }
+curveLength+=Math.hypot(samples[0][0]-samples.at(-1)[0],samples[0][1]-samples.at(-1)[1]);
+
+// Spatial hash keeps this dense all-pairs clearance check inexpensive.
+const cellSize=50;
+const grid=new Map();
 let minimumGap=Infinity;
 for (let i=0; i<samples.length; i++) {
-  for (let j=i+81; j<samples.length; j++) {
-    if (samples.length-(j-i)<81) continue;
-    minimumGap=Math.min(minimumGap,Math.hypot(samples[i][0]-samples[j][0],samples[i][1]-samples[j][1]));
+  const [x,z]=samples[i];
+  const gx=Math.floor(x/cellSize), gz=Math.floor(z/cellSize);
+  for (let ox=-1; ox<=1; ox++) {
+    for (let oz=-1; oz<=1; oz++) {
+      const nearby=grid.get(`${gx+ox},${gz+oz}`) || [];
+      for (const j of nearby) {
+        const delta=Math.abs(arc[i]-arc[j]);
+        const alongTrack=Math.min(delta,curveLength-delta);
+        if (alongTrack<80) continue;
+        minimumGap=Math.min(minimumGap,Math.hypot(x-samples[j][0],z-samples[j][1]));
+      }
+    }
   }
+  const key=`${gx},${gz}`;
+  if (!grid.has(key)) grid.set(key,[]);
+  grid.get(key).push(i);
 }
+
 const publishedLength=3500;
-const normalizedGap=minimumGap*publishedLength/normalizedLength;
-assert.ok(normalizedGap>=44, `Full-width Monaco road overlaps: minimum centreline clearance is ${normalizedGap.toFixed(2)}m for a 44m road`);
+const normalizedGap=minimumGap*publishedLength/curveLength;
+assert.ok(normalizedGap>=46, `Actual curved Monaco road sections are too close: ${normalizedGap.toFixed(2)}m centreline clearance for a 44m road`);
 
 assert.match(html,/const MONACO_PUBLISHED_LENGTH_M=3500;/);
+assert.match(html,/curve\.arcLengthDivisions=8192;/,"Monaco lap scaling must use a dense arc-length table");
 assert.match(html,/const MONACO_TRACK_HALF_WIDTH=22;/,"Monaco road half-width must match the other tracks at 22m (44m total)");
 assert.match(html,/TRACK_HALF_WIDTH=isMonza[\s\S]{0,120}isMonaco\s*\?MONACO_TRACK_HALF_WIDTH/);
 assert.match(html,/PIT_LANE_PATH_LATERAL=isMonza\?35:isMonaco\?35\.5/);
@@ -91,4 +136,4 @@ for (const removed of ["addBuilding(","buildingInstances","yachtSpots","crowdGeo
   assert.ok(!builder.includes(removed), `Monaco track-only builder must not contain ${removed}`);
 }
 assert.match(builder,/new THREE\.PlaneGeometry\(groundW,groundD\)/,"Only a flat neutral base should remain behind the circuit");
-console.log(`Monaco checks passed: ${sourcePoints.length} mapped points, ${sourceLength.toFixed(0)}m source trace, 3.50 km lap, 44m road width, ${normalizedGap.toFixed(2)}m minimum non-adjacent clearance, pit lane and kerbs.`);
+console.log(`Monaco checks passed: ${sourcePoints.length} mapped points, ${sourceLength.toFixed(0)}m source trace, 3.50 km lap, 44m road width, ${normalizedGap.toFixed(2)}m actual-curve clearance, pit lane and kerbs.`);

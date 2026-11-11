@@ -4983,7 +4983,9 @@ const monacoPoints=(()=>{
             points[i][2]+=pushZ[i];
         }
     }
-    for(let pass=0;pass<3;pass++){
+    // Smooth the repelled control points enough to remove tight
+    // Catmull-Rom overshoots between neighbouring track sections.
+    for(let pass=0;pass<35;pass++){
         const smooth=points.map(point=>point.slice());
         for(let i=0;i<count;i++){
             const previous=points[(i+count-1)%count];
@@ -4997,10 +4999,16 @@ const monacoPoints=(()=>{
 })();
 
 const MONACO_PUBLISHED_LENGTH_M=3500;
-const MONACO_BASE_LENGTH_M=new THREE.CatmullRomCurve3(
-    monacoPoints.map(p=>new THREE.Vector3(p[0],p[1],p[2])),
-    true,"centripetal",.35
-).getLength();
+const MONACO_BASE_LENGTH_M=(()=>{
+    const curve=new THREE.CatmullRomCurve3(
+        monacoPoints.map(p=>new THREE.Vector3(p[0],p[1],p[2])),
+        true,"centripetal",.35
+    );
+    // The 413-point centreline needs a dense arc-length table; Three.js'
+    // default 200 divisions underestimates the length and distorts scaling.
+    curve.arcLengthDivisions=8192;
+    return curve.getLength();
+})();
 
 const MONZA_SOURCE_LENGTH_M=5790.201866584;
 const MONZA_PUBLISHED_LENGTH_M=5793;
@@ -37148,7 +37156,7 @@ function loadMonacoWorld(){
     restoreFootprints("jeddah");
     monacoWorldBuilt=true;
     monacoWorld.visible=false;
-    console.log("[TRACK] Monaco rebuilt: 3.50 km, 44 m road width, separated track sections, pit lane, kerbs and edge lines");
+    console.log("[TRACK] Monaco rebuilt: 3.50 km, 44 m road width, 46 m+ non-local curve clearance, pit lane, kerbs and edge lines");
 }
 
 function setActiveTrack(id){
