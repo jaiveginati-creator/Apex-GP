@@ -4297,7 +4297,7 @@ const TRACK_SCALE=1.30;
 const DEFAULT_TRACK_HALF_WIDTH=22;
 let TRACK_HALF_WIDTH=DEFAULT_TRACK_HALF_WIDTH;
 const MONZA_TRACK_HALF_WIDTH=22;
-const MONACO_TRACK_HALF_WIDTH=14.5;
+const MONACO_TRACK_HALF_WIDTH=22;
 const KERB_WIDTH=3.5;
 let RUNOFF_WIDTH=14.5;
 const WALL_DISTANCE=48;
@@ -4533,7 +4533,7 @@ const spaPoints=[
   OpenStreetMap contributors; source geometry distributed by F1TrackDownloader.
   The final point is omitted because CatmullRomCurve3 is explicitly closed.
 */
-const monacoPoints=[
+const monacoSourcePoints=[
  [0.00,0.00,0.00],
  [-1.59,0.00,-21.14],
  [-1.97,0.00,-25.77],
@@ -4948,7 +4948,55 @@ const monacoPoints=[
  [0.61,0.00,5.30],
  [0.03,0.00,0.43]
 ];
-const MONACO_PUBLISHED_LENGTH_M=3337;
+
+//
+// Monaco clearance rebuild:
+// Keep the mapped corner sequence, but expand the tight neighbouring
+// sections so a 44 m racing surface does not fold over itself.
+// The final lap is still normalized to the published 3.337 km length.
+//
+const monacoPoints=(()=>{
+    const points=monacoSourcePoints.map(([x,y,z])=>[x*1.25,y,z*1.25]);
+    const count=points.length;
+    const clearance=78;
+    for(let iteration=0;iteration<300;iteration++){
+        const pushX=new Float64Array(count);
+        const pushZ=new Float64Array(count);
+        for(let i=0;i<count;i++){
+            for(let j=i+11;j<count;j++){
+                const forward=j-i;
+                if(count-forward<11)continue;
+                let dx=points[j][0]-points[i][0];
+                let dz=points[j][2]-points[i][2];
+                let distance=Math.hypot(dx,dz);
+                if(distance>=clearance)continue;
+                if(distance<1e-6){dx=1;dz=0;distance=1;}
+                const amount=(clearance-distance)*.09/distance;
+                pushX[i]-=dx*amount;
+                pushZ[i]-=dz*amount;
+                pushX[j]+=dx*amount;
+                pushZ[j]+=dz*amount;
+            }
+        }
+        for(let i=0;i<count;i++){
+            points[i][0]+=pushX[i];
+            points[i][2]+=pushZ[i];
+        }
+    }
+    for(let pass=0;pass<3;pass++){
+        const smooth=points.map(point=>point.slice());
+        for(let i=0;i<count;i++){
+            const previous=points[(i+count-1)%count];
+            const next=points[(i+1)%count];
+            smooth[i][0]=points[i][0]*.8+(previous[0]+next[0])*.1;
+            smooth[i][2]=points[i][2]*.8+(previous[2]+next[2])*.1;
+        }
+        for(let i=0;i<count;i++)points[i]=smooth[i];
+    }
+    return points;
+})();
+
+const MONACO_PUBLISHED_LENGTH_M=3500;
 const MONACO_BASE_LENGTH_M=new THREE.CatmullRomCurve3(
     monacoPoints.map(p=>new THREE.Vector3(p[0],p[1],p[2])),
     true,"centripetal",.35
@@ -27456,10 +27504,10 @@ function setActiveTrackData(id){
     PIT_SIDE=isMonza?-1:1;
     /* Track-specific pit geometry keeps the lane outside the
        road without carrying Monza's wide pit corridor into Monaco. */
-    PIT_LANE_PATH_LATERAL=isMonza?35:isMonaco?25.5:DEFAULT_PIT_LANE_PATH_LATERAL;
-    PIT_BOX_LATERAL=isMonza?41.5:isMonaco?32:DEFAULT_PIT_BOX_LATERAL;
-    PIT_ENTRY_LATERAL=isMonza?23:isMonaco?17.5:DEFAULT_PIT_ENTRY_LATERAL;
-    PIT_EXIT_LATERAL=isMonza?23:isMonaco?17.5:DEFAULT_PIT_EXIT_LATERAL;
+    PIT_LANE_PATH_LATERAL=isMonza?35:isMonaco?35.5:DEFAULT_PIT_LANE_PATH_LATERAL;
+    PIT_BOX_LATERAL=isMonza?41.5:isMonaco?42:DEFAULT_PIT_BOX_LATERAL;
+    PIT_ENTRY_LATERAL=isMonza?23:isMonaco?24.5:DEFAULT_PIT_ENTRY_LATERAL;
+    PIT_EXIT_LATERAL=isMonza?23:isMonaco?24.5:DEFAULT_PIT_EXIT_LATERAL;
 
     buildTrackCurveData(
         trackPointsFor(activeTrackId)
@@ -37100,7 +37148,7 @@ function loadMonacoWorld(){
     restoreFootprints("jeddah");
     monacoWorldBuilt=true;
     monacoWorld.visible=false;
-    console.log("[TRACK] Monaco track-only world ready: 3.337 km mapped centreline, 29 m road width, pit lane, kerbs and edge lines");
+    console.log("[TRACK] Monaco rebuilt: 3.50 km, 44 m road width, separated track sections, pit lane, kerbs and edge lines");
 }
 
 function setActiveTrack(id){
@@ -47917,9 +47965,9 @@ const TRACKS=[
         location:"MONTE-CARLO, MONACO",
         corners:19,
         rounds:TOTAL_LAPS,
-        lengthKm:"3.34 KM",
+        lengthKm:"3.50 KM",
         playable:true,
-        blurb:"Circuit de Monaco. A narrow 3.337 km street circuit through Sainte Devote, Casino Square, the Fairmont hairpin, the harbour tunnel, Swimming Pool and Rascasse, lined by the buildings and marina of Monte-Carlo."
+        blurb:"Circuit de Monaco. A reworked 3.50 km street circuit through Sainte Devote, Casino Square, the Fairmont hairpin, the harbour tunnel, Swimming Pool and Rascasse, with a wider racing surface and clearer separation between tight sections."
     }
 ];
 
