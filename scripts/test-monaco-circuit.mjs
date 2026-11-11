@@ -19,6 +19,12 @@ assert.match(html,/OpenStreetMap circuit-road relation/);
 assert.match(html,/const MONACO_PUBLISHED_LENGTH_M=3337;/);
 assert.match(html,/const MONACO_START_LON=/);
 assert.match(html,/const monacoGeoPoint=/);
+const projectionDeclaration=html.indexOf("const monacoGeoPoint=");
+const monacoBuilder=html.indexOf("function loadMonacoWorld()");
+assert.ok(projectionDeclaration>=0&&projectionDeclaration<monacoBuilder,
+  "Monaco geographic projection helper must be declared at module scope before loadMonacoWorld");
+assert.equal((html.match(/const monacoGeoPoint=/g)||[]).length,1,
+  "Monaco geographic projection helper must have one shared module-scope declaration");
 assert.match(html,/monacoGeoPoint\(7\.427608,43\.739328\)/);
 assert.match(html,/monacoGeoPoint\(7\.42758,43\.73915\)/);
 assert.match(html,/monacoGeoPoint\(7\.426743,43\.735166\)/);
