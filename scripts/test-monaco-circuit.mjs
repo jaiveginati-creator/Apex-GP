@@ -132,6 +132,12 @@ assert.match(builder,/createRibbon\(MONACO_TRACK_HALF_WIDTH,\.015,asphaltMateria
 assert.match(builder,/buildPitStrip\(/,"Pit lane must remain");
 assert.match(builder,/isNearKerbCorner\(/,"Kerbs must follow mapped corner positions");
 assert.match(builder,/startLine/,"Start/finish line must remain");
+assert.match(builder,/const monacoGlassMat=new THREE\\.MeshPhysicalMaterial/,"Monaco must use transparent physical glass panels");
+assert.match(builder,/new THREE\\.BoxGeometry\\(\\.16,2\\.45,METERS_PER_SAMPLE\\*4\\.08\\)/,"Glass guardrails must form continuous road-edge panels");
+assert.match(builder,/MONACO_TRACK_HALF_WIDTH\\+4\\.6/,"Guardrails must sit outside the road and kerbs");
+assert.match(builder,/if\\(side===PIT_SIDE&&isInPitCorridor\\(i\\)\\)continue/,"Pit entry and exit must remain open");
+assert.match(builder,/monacoGuardrailPosts/,"Glass barriers must have visible support posts");
+assert.match(builder,/monacoGuardrailCaps/,"Glass barriers must have a continuous top rail");
 for (const removed of ["addBuilding(","buildingInstances","yachtSpots","crowdGeo","tunnelStart","Casino de Monte-Carlo","Hotel de Paris","Street lamps","TreeGeometry"]) {
   assert.ok(!builder.includes(removed), `Monaco track-only builder must not contain ${removed}`);
 }
