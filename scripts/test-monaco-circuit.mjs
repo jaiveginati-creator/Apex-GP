@@ -32,7 +32,7 @@ for (const feature of [
   "const sea=new THREE.Mesh",
   "const yachtSpots=",
   "const casinoD=getTrackSample",
-  "const tunnelStart=790,tunnelEnd=1085",
+  "const tunnelStart=790,tunnelEnd=985",
   "const buildingInstances=",
   "const barriers=new THREE.InstancedMesh",
   "buildPitStrip"
@@ -42,4 +42,4 @@ for (const feature of [
 assert.match(html, /monacoWorld\.visible=next==="monaco"/);
 assert.match(html, /monacoWorld\.visible=prevTrack==="monaco"/);
 assert.match(html, /track\.id==="monaco"&&activeTrackId!=="monaco"/);
-console.log(`Monaco checks passed: ${points.length} centreline points, ${polylineLength.toFixed(0)}m source path, 3.337 km scaled lap, street barriers, city, casino, tunnel and marina.`);
+const tunnelMatch = html.match(/const tunnelStart=(\d+),tunnelEnd=(\d+);/);\nassert.ok(tunnelMatch, "Monaco tunnel bounds must be defined");\nconst tunnelLength = (Number(tunnelMatch[2]) - Number(tunnelMatch[1])) / 1600 * 3337;\nassert.ok(tunnelLength >= 350 && tunnelLength <= 450, `Monaco tunnel should cover about 400m, got ${tunnelLength.toFixed(0)}m`);\nconsole.log(`Monaco checks passed: ${points.length} centreline points, ${polylineLength.toFixed(0)}m source path, 3.337 km scaled lap, street barriers, city, casino, tunnel and marina.`);
