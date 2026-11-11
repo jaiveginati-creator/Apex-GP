@@ -19127,6 +19127,40 @@ function updatePhysics(dt){
             );
         }
 
+        /* The car's real velocity comes from physics.speed along its
+           heading, not collisionVelocity. Turn that heading gradually
+           toward the barrier tangent when the nose is driving outward.
+           This stops the engine from pushing into the rail every frame,
+           while preserving speed and allowing a natural wall-side slide. */
+        const forwardDirection=getForwardVector(
+            player.rotation.y,
+            _forwardScratchB
+        );
+        const movementDirection=forwardDirection.clone().multiplyScalar(
+            physics.speed>=0?1:-1
+        );
+        const outwardAlignment=THREE.MathUtils.clamp(
+            movementDirection.dot(trackInfo.sample.normal)*
+            Math.sign(trackInfo.lateral),
+            0,
+            1
+        );
+        if(outwardAlignment>.015){
+            const tangent=trackInfo.sample.tangent;
+            const noseSign=forwardDirection.dot(tangent)>=0?1:-1;
+            const targetHeading=Math.atan2(
+                tangent.x*noseSign,
+                tangent.z*noseSign
+            );
+            const headingError=Math.atan2(
+                Math.sin(targetHeading-player.rotation.y),
+                Math.cos(targetHeading-player.rotation.y)
+            );
+            const headingBlend=
+                (1-Math.exp(-dt*4.2))*outwardAlignment;
+            player.rotation.y+=headingError*headingBlend;
+        }
+
         /* One modest impact penalty, not a repeated full stop. */
         if(physics.collisionCooldown<=0){
             const impact=THREE.MathUtils.clamp(penetration/3.5,0,1);
@@ -22451,11 +22485,38 @@ function updatePlayer2Drive(
         const penetration=lateralDistance-barrierLimit;
         const correction=Math.min(penetration,Math.max(.025,dt*18));
 
-        /* Smoothly ease P2 back across the barrier boundary. */
+        /* Gradually steer P2's actual travel direction along the
+           barrier too; positional correction alone cannot counter
+           the car's forward speed servo. */
         ai.mesh.position.addScaledVector(
             sample.normal,
             side*correction
         );
+        const p2Forward=getForwardVector(
+            ai.mesh.rotation.y,
+            _forwardScratchC
+        );
+        const p2Movement=p2Forward.clone().multiplyScalar(
+            ai.speed>=0?1:-1
+        );
+        const p2Outward=THREE.MathUtils.clamp(
+            p2Movement.dot(sample.normal)*Math.sign(p2lateral),
+            0,
+            1
+        );
+        if(p2Outward>.015){
+            const tangentSign=p2Forward.dot(sample.tangent)>=0?1:-1;
+            const targetHeading=Math.atan2(
+                sample.tangent.x*tangentSign,
+                sample.tangent.z*tangentSign
+            );
+            const headingError=Math.atan2(
+                Math.sin(targetHeading-ai.mesh.rotation.y),
+                Math.cos(targetHeading-ai.mesh.rotation.y)
+            );
+            ai.mesh.rotation.y+=headingError*
+                (1-Math.exp(-dt*4.2))*p2Outward;
+        }
 
         if(ai.collisionCooldown<=0){
 
