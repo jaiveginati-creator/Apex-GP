@@ -106,6 +106,7 @@ function newPlayer(ws, name) {
         invalidCount: 0,
         progress: 0,
         lastProgressAt: 0,
+        progressLap: 0,
     };
     sessions.set(token, { code: null, playerId: null }); // filled by caller
     return p;
@@ -128,6 +129,7 @@ function resetRaceFields(room) {
         p.dnf = false;
         p.progress = 0;
         p.lastProgressAt = 0;
+        p.progressLap = 0;
     }
 }
 
@@ -191,6 +193,13 @@ function buildLeaderboard(room) {
             const bt = Number.isFinite(b.finishTime) ? b.finishTime : Infinity;
             if (at !== bt) return at - bt;
         }
+        // Lap is the primary race-distance component. Progress is the
+        // distance within the current lap and may wrap back to zero at
+        // the start/finish line. Comparing progress alone makes a driver
+        // who starts a new lap appear behind everyone still on the old lap.
+        const la = a.lap || 0;
+        const lb = b.lap || 0;
+        if (la !== lb) return lb - la;
         // Epsilon tie-break to avoid flicker for near-identical progress.
         const pa = a.progress || 0;
         const pb = b.progress || 0;
@@ -625,17 +634,25 @@ wss.on("connection", (ws, req) => {
             if (msg.progress != null && isNumber(msg.progress)) {
                 const pg = Number(msg.progress);
                 if (pg >= 0 && pg < 1e9) {
-                    if (pg + 1e-6 >= (me.progress || 0)) {
-                        // plausible max jump: 200 m/s equivalent
+                    const currentProgress = me.progress || 0;
+                    const lapAdvanced = (me.lap || 0) > (me.progressLap || 0);
+                    const wrappedAtLine = lapAdvanced && pg + 1e-6 < currentProgress;
+                    if (pg + 1e-6 >= currentProgress || wrappedAtLine) {
+                        // A per-lap progress value may wrap to zero after a
+                        // validated lap event. Cumulative progress remains
+                        // monotonic and follows the ordinary speed bound.
                         const hasProgressSample = me.lastProgressAt > 0;
                         const dtSec = Math.max(0.001, (now - (me.lastProgressAt || now)) / 1000);
-                        const jump = pg - (me.progress || 0);
+                        const jump = wrappedAtLine ? pg : pg - currentProgress;
                         // The first sample may begin some distance down the
-                        // grid; subsequent samples use a speed-based bound.
-                        const maxJump = hasProgressSample ? 200 * dtSec + 50 : 250;
+                        // grid; a wrapped sample is bounded from the new line.
+                        const maxJump = wrappedAtLine
+                            ? 250
+                            : (hasProgressSample ? 200 * dtSec + 50 : 250);
                         if (jump <= maxJump) {
                             me.progress = pg;
                             me.lastProgressAt = now;
+                            me.progressLap = me.lap || 0;
                         }
                     }
                 }
