@@ -19104,69 +19104,39 @@ function updatePhysics(dt){
         !monacoPitOpening
     ){
 
-        const signedLateral=trackInfo.lateral;
-        const safeLateral=Math.sign(signedLateral)*barrierLimit;
-        const correction=signedLateral-safeLateral;
+        const side=-Math.sign(trackInfo.lateral);
+        const penetration=lateralDistance-barrierLimit;
 
-        /* Hard positional constraint: keep the car centre on the
-           track side of the glass every physics frame. This does
-           not depend on the impact cooldown or speed penalty. */
+        /* Soft spring response: ease the car back inside instead
+           of snapping it to the boundary. The correction is capped
+           per frame, so contact feels like a scrape/deflection. */
+        const correction=Math.min(penetration,Math.max(.025,dt*18));
         player.position.addScaledVector(
             trackInfo.sample.normal,
-            -correction
+            side*correction
         );
 
-        /* Remove only velocity directed out through the barrier,
-           so steering can continue to slide the car along it. */
-        const outwardVelocity=
-            physics.collisionVelocity.dot(trackInfo.sample.normal)*
-            Math.sign(signedLateral);
+        /* Damp outward drift without killing motion along the rail. */
+        const normalVelocity=
+            physics.collisionVelocity.dot(trackInfo.sample.normal);
+        const outwardVelocity=normalVelocity*Math.sign(trackInfo.lateral);
         if(outwardVelocity>0){
             physics.collisionVelocity.addScaledVector(
                 trackInfo.sample.normal,
-                -Math.sign(signedLateral)*outwardVelocity
+                -Math.sign(trackInfo.lateral)*outwardVelocity*.72
             );
         }
 
-        /*
-           One impact, one penalty. Without the cooldown
-           this would scrub speed every single frame and
-           pin the car against the wall for good.
-        */
+        /* One modest impact penalty, not a repeated full stop. */
         if(physics.collisionCooldown<=0){
-
-            const impact=
-                THREE.MathUtils.clamp(
-                    (
-                        lateralDistance-
-                        barrierLimit
-                    )/2.2,
-                    0,
-                    1
-                );
-
-            /* speed loss proportional to how hard it
-               was hit: a brush costs little, a square
-               hit costs a lot */
-            physics.speed*=
-                1-Math.min(
-                    .55,
-                    .12+impact*.5
-                );
-
-            /* slide along the wall rather than stop
-               dead against it */
+            const impact=THREE.MathUtils.clamp(penetration/3.5,0,1);
+            physics.speed*=1-Math.min(.24,.035+impact*.20);
             physics.collisionVelocity.addScaledVector(
                 trackInfo.sample.normal,
-                side*Math.min(
-                    7,
-                    2+impact*9
-                )
+                side*Math.min(2.8,.7+impact*2.1)
             );
-
-            physics.steering*=.9;
-
-            physics.collisionCooldown=.3;
+            physics.steering*=.97;
+            physics.collisionCooldown=.42;
         }
     }
 
@@ -22477,13 +22447,14 @@ function updatePlayer2Drive(
         const sample=
             getTrackSample(barrierTrackIndex);
 
-        const safeP2Lateral=Math.sign(p2lateral)*barrierLimit;
-        const p2Correction=p2lateral-safeP2Lateral;
+        const side=-Math.sign(p2lateral);
+        const penetration=lateralDistance-barrierLimit;
+        const correction=Math.min(penetration,Math.max(.025,dt*18));
 
-        /* Same hard barrier constraint for the second car. */
+        /* Smoothly ease P2 back across the barrier boundary. */
         ai.mesh.position.addScaledVector(
             sample.normal,
-            -p2Correction
+            side*correction
         );
 
         if(ai.collisionCooldown<=0){
@@ -22498,13 +22469,8 @@ function updatePlayer2Drive(
                     1
                 );
 
-            ai.speed*=
-                1-Math.min(
-                    .55,
-                    .12+impact*.5
-                );
-
-            ai.collisionCooldown=1;
+            ai.speed*=1-Math.min(.24,.035+impact*.20);
+            ai.collisionCooldown=.42;
         }
     }
 
