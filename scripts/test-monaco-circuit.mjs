@@ -2,7 +2,8 @@ import fs from "node:fs";
 import assert from "node:assert/strict";
 
 const html = fs.readFileSync("index.html", "utf8");
-const pointsMatch = html.match(/const monacoPoints=\[([\s\S]*?)\n\];/);
+const pointsMatch = html.match(/const monacoPoints=\[([\s\S]*?)
+\];/);
 assert.ok(pointsMatch, "Monaco centreline control points must exist");
 const points = [...pointsMatch[1].matchAll(/\[\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\]/g)]
   .map(m => [Number(m[1]), Number(m[2]), Number(m[3])]);
@@ -42,4 +43,8 @@ for (const feature of [
 assert.match(html, /monacoWorld\.visible=next==="monaco"/);
 assert.match(html, /monacoWorld\.visible=prevTrack==="monaco"/);
 assert.match(html, /track\.id==="monaco"&&activeTrackId!=="monaco"/);
-const tunnelMatch = html.match(/const tunnelStart=(\d+),tunnelEnd=(\d+);/);\nassert.ok(tunnelMatch, "Monaco tunnel bounds must be defined");\nconst tunnelLength = (Number(tunnelMatch[2]) - Number(tunnelMatch[1])) / 1600 * 3337;\nassert.ok(tunnelLength >= 350 && tunnelLength <= 450, `Monaco tunnel should cover about 400m, got ${tunnelLength.toFixed(0)}m`);\nconsole.log(`Monaco checks passed: ${points.length} centreline points, ${polylineLength.toFixed(0)}m source path, 3.337 km scaled lap, street barriers, city, casino, tunnel and marina.`);
+const tunnelMatch = html.match(/const tunnelStart=(\d+),tunnelEnd=(\d+);/);
+assert.ok(tunnelMatch, "Monaco tunnel bounds must be defined");
+const tunnelLength = (Number(tunnelMatch[2]) - Number(tunnelMatch[1])) / 1600 * 3337;
+assert.ok(tunnelLength >= 350 && tunnelLength <= 450, `Monaco tunnel should cover about 400m, got ${tunnelLength.toFixed(0)}m`);
+console.log(`Monaco checks passed: ${points.length} centreline points, ${polylineLength.toFixed(0)}m source path, 3.337 km scaled lap, street barriers, city, casino, tunnel and marina.`);
