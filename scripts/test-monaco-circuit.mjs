@@ -32,7 +32,7 @@ assert.match(builder,/createRibbon\(MONACO_TRACK_HALF_WIDTH,\.015,asphaltMateria
 assert.match(builder,/buildPitStrip\(/,"Pit lane must remain");
 assert.match(builder,/isNearKerbCorner\(/,"Kerbs must follow mapped corner positions");
 assert.match(builder,/startLine/,"Start/finish line must remain");
-for (const removed of ["addBuilding(","buildingInstances","yachtSpots","grandstands","tunnelStart","Casino de Monte-Carlo","Hotel de Paris","Street lamps","TreeGeometry"]) {
+for (const removed of ["addBuilding(","buildingInstances","yachtSpots","crowdGeo","tunnelStart","Casino de Monte-Carlo","Hotel de Paris","Street lamps","TreeGeometry"]) {
   assert.ok(!builder.includes(removed), `Monaco track-only builder must not contain ${removed}`);
 }
 assert.match(builder,/new THREE\.PlaneGeometry\(groundW,groundD\)/,"Only a flat neutral base should remain behind the circuit");
