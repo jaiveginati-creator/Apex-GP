@@ -19107,70 +19107,60 @@ function updatePhysics(dt){
         const side=-Math.sign(trackInfo.lateral);
         const penetration=lateralDistance-barrierLimit;
 
-        /* Soft spring response: ease the car back inside instead
-           of snapping it to the boundary. The correction is capped
-           per frame, so contact feels like a scrape/deflection. */
-        const correction=Math.min(penetration,Math.max(.025,dt*18));
+        /* Keep the car centre on the legal side of the barrier. This
+           is a positional constraint only; it does not cancel speed. */
         player.position.addScaledVector(
             trackInfo.sample.normal,
-            side*correction
+            side*penetration
         );
 
-        /* Damp outward drift without killing motion along the rail. */
-        const normalVelocity=
-            physics.collisionVelocity.dot(trackInfo.sample.normal);
-        const outwardVelocity=normalVelocity*Math.sign(trackInfo.lateral);
-        if(outwardVelocity>0){
-            physics.collisionVelocity.addScaledVector(
-                trackInfo.sample.normal,
-                -Math.sign(trackInfo.lateral)*outwardVelocity*.72
-            );
-        }
-
-        /* The car's real velocity comes from physics.speed along its
-           heading, not collisionVelocity. Turn that heading gradually
-           toward the barrier tangent when the nose is driving outward.
-           This stops the engine from pushing into the rail every frame,
-           while preserving speed and allowing a natural wall-side slide. */
-        const forwardDirection=getForwardVector(
+        /* Resolve the car's actual velocity (speed along its heading)
+           against the wall normal. Remove only the component entering
+           the barrier; retain the tangent component so a glancing hit
+           becomes a continuous slide instead of a dead stop. */
+        const travelVelocity=getForwardVector(
             player.rotation.y,
             _forwardScratchB
-        );
-        const movementDirection=forwardDirection.clone().multiplyScalar(
-            physics.speed>=0?1:-1
-        );
-        const outwardAlignment=THREE.MathUtils.clamp(
-            movementDirection.dot(trackInfo.sample.normal)*
-            Math.sign(trackInfo.lateral),
-            0,
-            1
-        );
-        if(outwardAlignment>.015){
-            const tangent=trackInfo.sample.tangent;
-            const noseSign=forwardDirection.dot(tangent)>=0?1:-1;
-            const targetHeading=Math.atan2(
-                tangent.x*noseSign,
-                tangent.z*noseSign
+        ).multiplyScalar(physics.speed);
+        const outwardSpeed=
+            travelVelocity.dot(trackInfo.sample.normal)*
+            Math.sign(trackInfo.lateral);
+        if(outwardSpeed>0){
+            travelVelocity.addScaledVector(
+                trackInfo.sample.normal,
+                -Math.sign(trackInfo.lateral)*outwardSpeed
             );
-            const headingError=Math.atan2(
-                Math.sin(targetHeading-player.rotation.y),
-                Math.cos(targetHeading-player.rotation.y)
-            );
-            const headingBlend=
-                (1-Math.exp(-dt*4.2))*outwardAlignment;
-            player.rotation.y+=headingError*headingBlend;
         }
 
-        /* One modest impact penalty, not a repeated full stop. */
-        if(physics.collisionCooldown<=0){
-            const impact=THREE.MathUtils.clamp(penetration/3.5,0,1);
-            physics.speed*=1-Math.min(.24,.035+impact*.20);
-            physics.collisionVelocity.addScaledVector(
-                trackInfo.sample.normal,
-                side*Math.min(2.8,.7+impact*2.1)
+        const slideSpeed=travelVelocity.length();
+        if(slideSpeed>.35){
+            physics.speed=slideSpeed;
+            player.rotation.y=Math.atan2(
+                travelVelocity.x,
+                travelVelocity.z
             );
-            physics.steering*=.97;
-            physics.collisionCooldown=.42;
+        }else{
+            /* A near head-on impact can legitimately lose most
+               forward motion; it must not affect a glancing scrape. */
+            physics.speed=Math.min(
+                Math.abs(physics.speed)*.12,
+                .8
+            );
+        }
+
+        /* The resolved velocity is now represented by speed+heading,
+           so discard the old side impulse rather than letting it push
+           the car back through the barrier next frame. */
+        physics.collisionVelocity.set(0,0,0);
+
+        if(physics.collisionCooldown<=0){
+            const impact=THREE.MathUtils.clamp(
+                outwardSpeed/Math.max(1,Math.abs(physics.speed)),
+                0,
+                1
+            );
+            physics.speed*=1-.08*impact;
+            physics.collisionCooldown=.18;
         }
     }
 
