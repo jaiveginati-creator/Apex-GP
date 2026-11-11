@@ -645,14 +645,11 @@
             if (typeof document === "undefined") return;
             const el = document.getElementById("netStandings");
             if (!el) return;
-            // Default to the last server snapshot so event
-            // handlers never overwrite confirmed rows with
-            // the local-sim fallback.
             stateMsg = stateMsg || this.lastStateMsg;
             const B = this.bridge();
             const rows = [];
-            const push = function (name, lap, status, confirmed, me) {
-                rows.push({ name, lap, status, confirmed, me });
+            const push = function (name, lap, status, confirmed, me, progress, finishTime) {
+                rows.push({ name, lap, status, confirmed, me, progress, finishTime });
             };
             if (this.leaderboard && Array.isArray(this.leaderboard) && this.leaderboard.length) {
                 const sorted = this.leaderboard.slice().sort(function (a, b) {
@@ -661,10 +658,10 @@
                 for (let i = 0; i < sorted.length; i++) {
                     const p = sorted[i];
                     const me = this.client && p.id === this.client.id;
-                    let status = "racing";
-                    if (p.finished) status = "finished";
+                    let status = "RACING";
+                    if (p.finished) status = "FINISHED";
                     else if (p.dnf || p.connected === false) status = "DNF";
-                    push(p.name || "?", p.lap || 0, status, true, me);
+                    push(p.name || "?", p.lap || 0, status, true, me, p.progress, p.finishTime);
                 }
             } else if (stateMsg && stateMsg.players) {
                 const sorted = stateMsg.players.slice().sort(function (a, b) {
@@ -677,44 +674,47 @@
                 });
                 for (let i = 0; i < sorted.length; i++) {
                     const p = sorted[i];
-                    const me =
-                        this.client && p.id === this.client.id;
-                    let status = "racing";
-                    if (p.finished) status = "finished";
+                    const me = this.client && p.id === this.client.id;
+                    let status = "RACING";
+                    if (p.finished) status = "FINISHED";
                     else if (p.dnf || p.connected === false) status = "DNF";
-                    push(p.name || "?", p.lap || 0, status, true, me);
+                    push(p.name || "?", p.lap || 0, status, true, me, null, p.finishTime);
                 }
             } else if (B && typeof B.localStandings === "function") {
                 const local = B.localStandings();
                 for (let i = 0; i < local.length; i++) {
-                    push(
-                        local[i].name,
-                        local[i].lap,
-                        local[i].finished ? "finished*" : "racing*",
-                        false,
-                        !!local[i].me
-                    );
+                    push(local[i].name, local[i].lap,
+                        local[i].finished ? "FINISHED*" : "RACING*",
+                        false, !!local[i].me, null, null);
                 }
             }
             el.textContent = "";
+            const heading = document.createElement("div");
+            heading.textContent = this.leaderboard && this.leaderboard.length
+                ? "LIVE SERVER LEADERBOARD"
+                : "PROVISIONAL STANDINGS";
+            heading.style.cssText = "color:#f2d132;font-weight:bold;margin-bottom:3px;";
+            el.appendChild(heading);
             rows.forEach(function (r, i) {
                 const d = document.createElement("div");
+                const progress = Number.isFinite(r.progress)
+                    ? " · " + Math.round(r.progress)
+                    : "";
+                const finish = r.finishTime != null && Number.isFinite(Number(r.finishTime))
+                    ? " · " + (Number(r.finishTime) / 1000).toFixed(2) + "s"
+                    : "";
                 d.textContent =
-                    i +
-                    1 +
-                    ". " +
-                    r.name +
-                    " L" +
-                    r.lap +
-                    " " +
-                    r.status +
-                    (r.confirmed ? " ✓" : " ∼") +
-                    (r.me ? " (you)" : "");
+                    (i + 1) + ". " + r.name +
+                    "  L" + r.lap + progress +
+                    "  " + r.status + finish +
+                    (r.me ? "  (YOU)" : "") +
+                    (r.confirmed ? " ✓" : " ∼");
+                d.style.cssText = r.me
+                    ? "color:#fff;font-weight:bold;"
+                    : "color:#cbd5e1;";
                 el.appendChild(d);
             });
-            if (!rows.length) {
-                el.textContent = "no data yet — join a room";
-            }
+            if (!rows.length) el.textContent = "no data yet — join a room";
         },
 
 
