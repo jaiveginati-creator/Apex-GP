@@ -19118,10 +19118,12 @@ function updatePhysics(dt){
            against the wall normal. Remove only the component entering
            the barrier; retain the tangent component so a glancing hit
            becomes a continuous slide instead of a dead stop. */
-        const travelVelocity=getForwardVector(
+        const originalForward=getForwardVector(
             player.rotation.y,
             _forwardScratchB
-        ).multiplyScalar(physics.speed);
+        );
+        const incomingSpeed=Math.max(1,Math.abs(physics.speed));
+        const travelVelocity=originalForward.clone().multiplyScalar(physics.speed);
         const outwardSpeed=
             travelVelocity.dot(trackInfo.sample.normal)*
             Math.sign(trackInfo.lateral);
@@ -19134,10 +19136,12 @@ function updatePhysics(dt){
 
         const slideSpeed=travelVelocity.length();
         if(slideSpeed>.35){
-            physics.speed=slideSpeed;
+            const travelSign=travelVelocity.dot(originalForward)>=0?1:-1;
+            const noseDirection=travelVelocity.clone().multiplyScalar(travelSign);
+            physics.speed=slideSpeed*travelSign;
             player.rotation.y=Math.atan2(
-                travelVelocity.x,
-                travelVelocity.z
+                noseDirection.x,
+                noseDirection.z
             );
         }else{
             /* A near head-on impact can legitimately lose most
@@ -19155,7 +19159,7 @@ function updatePhysics(dt){
 
         if(physics.collisionCooldown<=0){
             const impact=THREE.MathUtils.clamp(
-                outwardSpeed/Math.max(1,Math.abs(physics.speed)),
+                outwardSpeed/incomingSpeed,
                 0,
                 1
             );
@@ -22473,41 +22477,39 @@ function updatePlayer2Drive(
 
         const side=-Math.sign(p2lateral);
         const penetration=lateralDistance-barrierLimit;
-        const correction=Math.min(penetration,Math.max(.025,dt*18));
 
-        /* Gradually steer P2's actual travel direction along the
-           barrier too; positional correction alone cannot counter
-           the car's forward speed servo. */
+        /* Constrain position but preserve the along-wall component
+           of P2's actual velocity, just like the player car. */
         ai.mesh.position.addScaledVector(
             sample.normal,
-            side*correction
+            side*penetration
         );
         const p2Forward=getForwardVector(
             ai.mesh.rotation.y,
             _forwardScratchC
         );
-        const p2Movement=p2Forward.clone().multiplyScalar(
-            ai.speed>=0?1:-1
-        );
-        const p2Outward=THREE.MathUtils.clamp(
-            p2Movement.dot(sample.normal)*Math.sign(p2lateral),
-            0,
-            1
-        );
-        if(p2Outward>.015){
-            const tangentSign=p2Forward.dot(sample.tangent)>=0?1:-1;
-            const targetHeading=Math.atan2(
-                sample.tangent.x*tangentSign,
-                sample.tangent.z*tangentSign
+        const p2IncomingSpeed=Math.max(1,Math.abs(ai.speed));
+        const p2Travel=p2Forward.clone().multiplyScalar(ai.speed);
+        const p2Outward=
+            p2Travel.dot(sample.normal)*Math.sign(p2lateral);
+        if(p2Outward>0){
+            p2Travel.addScaledVector(
+                sample.normal,
+                -Math.sign(p2lateral)*p2Outward
             );
-            const headingError=Math.atan2(
-                Math.sin(targetHeading-ai.mesh.rotation.y),
-                Math.cos(targetHeading-ai.mesh.rotation.y)
-            );
-            ai.mesh.rotation.y+=headingError*
-                (1-Math.exp(-dt*4.2))*p2Outward;
         }
-
+        const p2SlideSpeed=p2Travel.length();
+        if(p2SlideSpeed>.35){
+            const p2TravelSign=p2Travel.dot(p2Forward)>=0?1:-1;
+            const p2Nose=p2Travel.clone().multiplyScalar(p2TravelSign);
+            ai.speed=p2SlideSpeed*p2TravelSign;
+            ai.mesh.rotation.y=Math.atan2(
+                p2Nose.x,
+                p2Nose.z
+            );
+        }else{
+            ai.speed=Math.min(Math.abs(ai.speed)*.12,.8);
+        }
         if(ai.collisionCooldown<=0){
 
             const impact=
