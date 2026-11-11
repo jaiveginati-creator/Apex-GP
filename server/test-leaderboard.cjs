@@ -66,6 +66,7 @@ function sendPosition(ws, state, progress) {
             PORT: String(PORT),
             HOST: "127.0.0.1",
             COUNTDOWN_MS: "100",
+            MIN_LAP_MS: "100",
             RECONNECT_GRACE_MS: "2000"
         },
         stdio: ["ignore", "pipe", "pipe"]
@@ -131,6 +132,31 @@ function sendPosition(ws, state, progress) {
         );
         assert.equal(overtakingBoard.entries[1].name, "Alpha");
         console.log("ok: server standings follow accepted live progress");
+
+        // Lap count must outrank within-lap progress. A driver's progress
+        // may wrap to a small value after crossing the start/finish line.
+        await sleep(130);
+        sendPosition(alpha, a, 220);
+        await waitFor(alpha, (m) =>
+            m.t === "leaderboard" &&
+            m.entries.some((e) => e.name === "Alpha" && e.progress >= 220)
+        );
+        await sleep(130);
+        send(bravo, { t: "lap", lap: 1, time: 1000 });
+        await waitFor(alpha, (m) =>
+            m.t === "leaderboard" &&
+            m.entries.some((e) => e.id === joined.id && e.lap === 1)
+        );
+        await sleep(130);
+        sendPosition(bravo, b, 20);
+        const wrappedBoard = await waitFor(alpha, (m) =>
+            m.t === "leaderboard" &&
+            m.entries.some((e) => e.id === joined.id && e.lap === 1 && e.progress === 20)
+        );
+        assert.equal(wrappedBoard.entries[0].id, joined.id,
+            "driver on the next lap must rank ahead despite smaller wrapped progress");
+        assert.equal(wrappedBoard.entries[1].name, "Alpha");
+        console.log("ok: lap-boundary progress wrap preserves shared race order");
 
         // A dropped socket must be able to reclaim the same room/player.
         alpha.terminate();
