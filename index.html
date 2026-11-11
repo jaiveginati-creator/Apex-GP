@@ -36198,13 +36198,6 @@ function loadMonzaWorld(){
             .addScaledVector(sample.normal,lateral)
             .add(new THREE.Vector3(Math.sin(yaw)*along,y,Math.cos(yaw)*along));
     };
-    const MONACO_START_LON=7.421264796,MONACO_START_LAT=43.735030780;
-    const MONACO_METERS_PER_LON=111320*Math.cos(MONACO_START_LAT*Math.PI/180);
-    const monacoGeoPoint=(lon,lat,y=0)=>new THREE.Vector3(
-        (lon-MONACO_START_LON)*MONACO_METERS_PER_LON,
-        y,
-        -(lat-MONACO_START_LAT)*111320
-    );
     const box=(world,w,h,d,x,y,z,yaw,mat,cast=true)=>{
         const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
         m.position.set(x,y,z);m.rotation.y=yaw;
@@ -36983,6 +36976,17 @@ function loadMonzaWorld(){
     monzaWorld.visible=false;
     console.log("[TRACK] Monza world ready: terrain, parkland, grandstands, paddock and trackside detail");
 }
+
+/* Shared geographic projection for Monaco landmarks.
+   Keep this at module scope: loadMonacoWorld() uses it independently
+   of loadMonzaWorld(). The origin is the mapped Monaco start/finish. */
+const MONACO_START_LON=7.421264796,MONACO_START_LAT=43.735030780;
+const MONACO_METERS_PER_LON=111320*Math.cos(MONACO_START_LAT*Math.PI/180);
+const monacoGeoPoint=(lon,lat,y=0)=>new THREE.Vector3(
+    (lon-MONACO_START_LON)*MONACO_METERS_PER_LON,
+    y,
+    -(lat-MONACO_START_LAT)*111320
+);
 
 let monacoWorldBuilt=false;
 
