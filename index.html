@@ -37131,6 +37131,71 @@ function loadMonacoWorld(){
     if(kerbs.instanceColor)kerbs.instanceColor.needsUpdate=true;
     monacoWorld.add(kerbs);
 
+    /* Monaco glass guardrails: continuous transparent panels on both
+       road edges, with slim steel uprights and a top cap. Keep the
+       pit-side opening clear so cars can enter and leave the pit lane. */
+    const monacoGlassMat=new THREE.MeshPhysicalMaterial({
+        color:0xb9e5ef,roughness:.08,metalness:.08,transparent:true,
+        opacity:.27,side:THREE.DoubleSide,depthWrite:false,envMapIntensity:1.25
+    });
+    const monacoRailMat=new THREE.MeshStandardMaterial({
+        color:0x87949b,roughness:.32,metalness:.78,envMapIntensity:1.1
+    });
+    const monacoGuardrailStep=4;
+    const monacoGuardrailCapacity=Math.ceil(TRACK_SAMPLES/monacoGuardrailStep)*2;
+    const monacoGlassPanels=new THREE.InstancedMesh(
+        new THREE.BoxGeometry(.16,2.45,METERS_PER_SAMPLE*4.08),
+        monacoGlassMat,monacoGuardrailCapacity
+    );
+    const monacoGuardrailPosts=new THREE.InstancedMesh(
+        new THREE.BoxGeometry(.24,2.85,.24),monacoRailMat,monacoGuardrailCapacity
+    );
+    const monacoGuardrailCaps=new THREE.InstancedMesh(
+        new THREE.BoxGeometry(.28,.16,METERS_PER_SAMPLE*4.08),
+        monacoRailMat,monacoGuardrailCapacity
+    );
+    const monacoGuardrailObject=new THREE.Object3D();
+    let monacoGuardrailCount=0;
+    for(let i=0;i<TRACK_SAMPLES;i+=monacoGuardrailStep){
+        const d=getTrackSample(i);
+        for(const side of [-1,1]){
+            // Leave the pit entry/exit side open for pit-lane access.
+            if(side===PIT_SIDE&&isInPitCorridor(i))continue;
+            const pos=d.p.clone().addScaledVector(
+                d.normal,side*(MONACO_TRACK_HALF_WIDTH+4.6)
+            );
+            const angle=getTrackTangentAngle(d);
+            monacoGuardrailObject.position.copy(pos);
+            monacoGuardrailObject.position.y=d.p.y+1.42;
+            monacoGuardrailObject.rotation.set(0,angle,0);
+            pitchToGrade(monacoGuardrailObject,i);
+            monacoGuardrailObject.updateMatrix();
+            monacoGlassPanels.setMatrixAt(monacoGuardrailCount,monacoGuardrailObject.matrix);
+
+            monacoGuardrailObject.position.y=d.p.y+1.43;
+            monacoGuardrailObject.rotation.set(0,0,0);
+            monacoGuardrailObject.updateMatrix();
+            monacoGuardrailPosts.setMatrixAt(monacoGuardrailCount,monacoGuardrailObject.matrix);
+
+            monacoGuardrailObject.position.y=d.p.y+2.72;
+            monacoGuardrailObject.rotation.set(0,angle,0);
+            pitchToGrade(monacoGuardrailObject,i);
+            monacoGuardrailObject.updateMatrix();
+            monacoGuardrailCaps.setMatrixAt(monacoGuardrailCount,monacoGuardrailObject.matrix);
+            monacoGuardrailCount++;
+        }
+    }
+    monacoGlassPanels.count=monacoGuardrailCount;
+    monacoGuardrailPosts.count=monacoGuardrailCount;
+    monacoGuardrailCaps.count=monacoGuardrailCount;
+    monacoGlassPanels.instanceMatrix.needsUpdate=true;
+    monacoGuardrailPosts.instanceMatrix.needsUpdate=true;
+    monacoGuardrailCaps.instanceMatrix.needsUpdate=true;
+    monacoGlassPanels.renderOrder=2;
+    monacoWorld.add(monacoGlassPanels);
+    monacoWorld.add(monacoGuardrailPosts);
+    monacoWorld.add(monacoGuardrailCaps);
+
     /* Keep the mapped pit lane and pit-entry/exit geometry;
        no garages, grandstands, buildings or surrounding props. */
     monacoWorld.add(buildPitStrip(row=>pitInnerEdge(row),row=>pitOuterEdge(row),.035,pitAsphaltMaterial));
