@@ -197,7 +197,7 @@ for (const required of [
   "tunnelStartIndex=620","tunnelEndIndex=850","tunnelLightMat","new THREE.PointLight","new THREE.CapsuleGeometry","floatingOnHarbour"
 ]) assert.ok(builder.includes(required), `Monaco environment must include ${required}`);
 assert.doesNotMatch(builder,/const edgeMat=new THREE\.MeshStandardMaterial\(\{color:0xf4f3ed/,"Monaco road must not have continuous white edge strips");
-assert.match(builder,/hull\.position\.y=1\.1/,"Yacht hulls must float at the harbour waterline");
+assert.match(builder,/hull\.position\.y=1\.05/,"Yacht hulls must float at the harbour waterline");
 assert.match(builder,/yacht\.position\.set\(x,-1\.02,z\)/,"Yachts must be positioned at the harbour water surface");
 assert.match(builder,/const clearOfCircuit=\(x,z,minDistance=68\)/,"Scenery must be excluded from the racing corridor");
 assert.match(builder,/new THREE\.PlaneGeometry\(5200,5200\)/,"Monaco must have a large Mediterranean sea backdrop");
