@@ -37154,10 +37154,12 @@ function loadMonacoWorld(){
         }
         return true;
     };
+    /* Move Port Hercule into the visible waterfront pocket beside the
+       mapped circuit and give it a full marina-scale footprint. */
     const harbourX=centerX+12;
-    const harbourZ=centerZ+183;
-    const harbourWidth=160;
-    const harbourDepth=200;
+    const harbourZ=centerZ+153;
+    const harbourWidth=190;
+    const harbourDepth=210;
     const insideHarbour=(x,z,margin=0)=>
         Math.abs(x-harbourX)<harbourWidth/2+margin&&
         Math.abs(z-harbourZ)<harbourDepth/2+margin;
@@ -37184,6 +37186,7 @@ function loadMonacoWorld(){
             clearcoat:1,clearcoatRoughness:.1
         })
     );
+    harbour.geometry.scale(1.15,1.05,1);
     harbour.rotation.x=-Math.PI/2;
     harbour.position.set(harbourX,-1.08,harbourZ);
     harbour.receiveShadow=true;
@@ -37334,6 +37337,11 @@ function loadMonacoWorld(){
         addBuilding(x,z,34+cityRand()*28,30+cityRand()*25,24+cityRand()*48,Math.floor(cityRand()*cityMaterials.length));
     }
 
+    /* Low-rise waterfront blocks frame the marina without covering the
+       basin or entering the racing corridor. */
+    addBuilding(harbourX+132,harbourZ-38,46,34,26,2,"Port Hercule waterfront hotel");
+    addBuilding(harbourX+134,harbourZ+24,38,30,21,4,"Port Hercule waterfront block");
+
     facadeWindows.count=facadeWindowCount;facadeBalconies.count=facadeBalconyCount;
     facadeWindows.instanceMatrix.needsUpdate=true;facadeBalconies.instanceMatrix.needsUpdate=true;
 
@@ -37352,26 +37360,31 @@ function loadMonacoWorld(){
     tunnelShape.quadraticCurveTo(-28,25,-29,15);
     tunnelShape.lineTo(-29,0);
     tunnelShape.closePath();
-    const tunnelGeometry=new THREE.ExtrudeGeometry(tunnelShape,{
-        depth:METERS_PER_SAMPLE*2.15,bevelEnabled:false,curveSegments:12,steps:1
-    });
-    tunnelGeometry.computeVertexNormals();
-    const tunnelConcrete=new THREE.MeshStandardMaterial({color:0x77736d,roughness:.94});
-    const tunnelInterior=new THREE.MeshStandardMaterial({color:0x202629,roughness:.96,side:THREE.DoubleSide});
     const tunnelGroup=new THREE.Group();
     tunnelGroup.name="monacoGrandPrixTunnel";
     monacoWorld.add(tunnelGroup);
-    /* Portier exit through the full harbour-side tunnel to the Nouvelle
-       Chicane: sampled along the mapped centreline, about 500 m long. */
-    const tunnelStartIndex=620,tunnelEndIndex=850,tunnelStep=2;
-    for(let i=tunnelStartIndex;i<tunnelEndIndex;i+=tunnelStep){
+    /* Build one continuous swept arch along the actual centreline. This
+       removes the visible gaps and overlapping end-caps from short boxes. */
+    const tunnelStartIndex=620,tunnelEndIndex=850;
+    const tunnelPathPoints=[];
+    for(let i=tunnelStartIndex;i<=tunnelEndIndex;i++){
         const sample=getTrackSample(i);
-        const segment=new THREE.Mesh(tunnelGeometry,[tunnelConcrete,tunnelInterior]);
-        segment.position.set(sample.p.x,sample.p.y-1.25,sample.p.z);
-        segment.rotation.y=getTrackTangentAngle(sample);
-        segment.castShadow=true;segment.receiveShadow=true;
-        tunnelGroup.add(segment);
+        tunnelPathPoints.push(new THREE.Vector3(sample.p.x,sample.p.y-1.25,sample.p.z));
     }
+    const tunnelPath=new THREE.CatmullRomCurve3(tunnelPathPoints,false,"centripetal");
+    const tunnelGeometry=new THREE.ExtrudeGeometry(tunnelShape,{
+        steps:tunnelPathPoints.length*2,bevelEnabled:false,curveSegments:16,
+        extrudePath:tunnelPath
+    });
+    tunnelGeometry.computeVertexNormals();
+    /* The shell itself is dark concrete; the low-output fixtures are the
+       only light sources inside the tunnel. */
+    const tunnelConcrete=new THREE.MeshStandardMaterial({
+        color:0x252a2d,roughness:.98,side:THREE.DoubleSide
+    });
+    const tunnelShell=new THREE.Mesh(tunnelGeometry,tunnelConcrete);
+    tunnelShell.castShadow=true;tunnelShell.receiveShadow=true;
+    tunnelGroup.add(tunnelShell);
     /* Hollow stone portal collars keep both mouths completely open. */
     const portalGeo=new THREE.ExtrudeGeometry(tunnelShape,{depth:4,bevelEnabled:false,curveSegments:16});
     const portalMat=new THREE.MeshStandardMaterial({color:0xbbb7ad,roughness:.9});
@@ -37385,14 +37398,14 @@ function loadMonacoWorld(){
     }
     /* The interior is deliberately unlit by scenery or daylight meshes.
        Real point lights and recessed fixtures provide the only tunnel light. */
-    const tunnelLightMat=new THREE.MeshStandardMaterial({color:0xffe5b2,emissive:0xffc66b,emissiveIntensity:1.8});
-    for(let i=tunnelStartIndex+6;i<tunnelEndIndex;i+=12){
+    const tunnelLightMat=new THREE.MeshStandardMaterial({color:0x8d7959,emissive:0x9a682d,emissiveIntensity:.72});
+    for(let i=tunnelStartIndex+6;i<tunnelEndIndex;i+=8){
         const sample=getTrackSample(i);
         const light=new THREE.Mesh(new THREE.BoxGeometry(3.2,.38,1.5),tunnelLightMat);
         light.position.set(sample.p.x,sample.p.y+22,sample.p.z);
         light.rotation.y=getTrackTangentAngle(sample);
         tunnelGroup.add(light);
-        const lamp=new THREE.PointLight(0xffdca0,4.2,54,2);
+        const lamp=new THREE.PointLight(0xffc982,2.15,38,2);
         lamp.position.set(sample.p.x,sample.p.y+18,sample.p.z);
         tunnelGroup.add(lamp);
     }
@@ -37442,7 +37455,7 @@ function loadMonacoWorld(){
     gardenTrees.count=gardenCount;gardenTrees.instanceMatrix.needsUpdate=true;
     monacoWorld.add(gardenTrees);
 
-    /* Six individually shaped motor yachts moored in open-water berths. */
+    /* Ten individually shaped motor yachts in two clear marina lanes. */
     const yachtHullMat=new THREE.MeshStandardMaterial({color:0xf1eee6,roughness:.28,metalness:.08});
     const yachtDeckMat=new THREE.MeshStandardMaterial({color:0xc8bca9,roughness:.72});
     const yachtGlassMat=new THREE.MeshPhysicalMaterial({color:0x183b4a,roughness:.15,metalness:.2,clearcoat:.9});
@@ -37455,10 +37468,10 @@ function loadMonacoWorld(){
     hullShape.closePath();
     const yachtHullGeo=new THREE.ExtrudeGeometry(hullShape,{depth:2.3,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:.35,bevelThickness:.25});
     yachtHullGeo.rotateX(Math.PI/2);
-    for(let i=0;i<6;i++){
+    for(let i=0;i<10;i++){
         const col=i%2,row=Math.floor(i/2);
-        const x=harbourX+(col===0?-42:42);
-        const z=harbourZ-54+row*54;
+        const x=harbourX+(col===0?-48:48);
+        const z=harbourZ-72+row*36;
         const yacht=new THREE.Group();
         const hull=new THREE.Mesh(yachtHullGeo,yachtHullMat);
         hull.position.y=1.15;yacht.add(hull);
@@ -37472,6 +37485,7 @@ function loadMonacoWorld(){
         bowRail.rotation.z=Math.PI/2;bowRail.position.set(18,2.2,0);yacht.add(bowRail);
         const mast=new THREE.Mesh(new THREE.CylinderGeometry(.07,.1,6.5,7),yachtHullMat);
         mast.position.set(-17,6.1,0);yacht.add(mast);
+        yacht.scale.setScalar(.78+(i%3)*.12);
         yacht.position.set(x,-1.02,z);
         yacht.rotation.y=col===0?0:Math.PI;
         yacht.userData.floatingOnHarbour=true;
