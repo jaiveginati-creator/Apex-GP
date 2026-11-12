@@ -122,7 +122,7 @@ const harbourBounds={
   maxZ:Math.max(...normalizedSamples.map(p=>p[1]))
 };
 const harbourCenterX=(harbourBounds.minX+harbourBounds.maxX)/2+12;
-const harbourCenterZ=(harbourBounds.minZ+harbourBounds.maxZ)/2+205;
+const harbourCenterZ=(harbourBounds.minZ+harbourBounds.maxZ)/2+225;
 let harbourRoadGap=Infinity;
 for(const [x,z] of normalizedSamples){
   const dx=Math.max(Math.abs(x-harbourCenterX)-(210/2+12+12),0);
@@ -205,7 +205,7 @@ assert.match(builder,/insideHarbour\(x,z,22\)/,"City buildings must not cover th
 assert.match(builder,/for\(let i=0;i<10;i\+\+\)/,"Harbour must contain ten individually modelled yachts");
 assert.match(builder,/Port Hercule waterfront hotel/,"Harbour must have waterfront buildings framing the marina");
 assert.match(builder,/const harbourX=centerX\+12/,"Marina must be positioned beside the real mapped harbour-side district");
-assert.match(builder,/const harbourZ=centerZ\+205/,"Marina must be moved into the visible mapped harbour-side pocket");
+assert.match(builder,/const harbourZ=centerZ\+225/,"Marina must be moved into the visible mapped harbour-side pocket");
 assert.match(builder,/const harbourWidth=210/,"Marina must have a full-scale basin width");
 assert.match(builder,/const harbourDepth=230/,"Marina must have a full-scale basin depth");
 assert.match(builder,/harbour\.geometry\.scale\(1\.22,1\.12,1\)/,"Marina water must be large enough to read clearly from the circuit");
