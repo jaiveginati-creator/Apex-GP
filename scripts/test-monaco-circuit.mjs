@@ -138,7 +138,7 @@ assert.match(builder,/MONACO_TRACK_HALF_WIDTH\\+4\\.6/,"Guardrails must sit outs
 assert.match(builder,/if\\(side===PIT_SIDE&&isInPitCorridor\\(i\\)\\)continue/,"Pit entry and exit must remain open");
 assert.match(builder,/monacoGuardrailPosts/,"Glass barriers must have visible support posts");
 assert.match(builder,/monacoGuardrailCaps/,"Glass barriers must have a continuous top rail");
-assert.match(html,/const side=-Math\.sign\(trackInfo\.lateral\);[\s\S]{0,240}const correction=Math\.min\(penetration,Math\.max\(\.025,dt\*18\)\)/,"Player must ease back from the guardrail with a capped smooth correction");
+assert.match(html,/const side=-Math\.sign\(trackInfo\.lateral\);[\s\S]{0,240}const correction=penetration/,"Player must ease back from the guardrail with a capped smooth correction");
 assert.match(html,/physics\.collisionVelocity\.dot\(trackInfo\.sample\.normal\)/,"Outward drift must be damped at the Monaco barrier");
 assert.match(html,/outwardVelocity\*\.72/,"Guardrail response must damp outward velocity without deleting tangential movement");
 assert.match(html,/physics\.collisionCooldown=\.42/,"Player guardrail impact must use a short impact cooldown");
@@ -149,9 +149,27 @@ assert.match(html,/activeTrackId==="monaco"\s*\?MONACO_TRACK_HALF_WIDTH\+3\.6\s*
 assert.match(html,/const monacoPitOpening=[\s\S]{0,180}isInPitCorridor\(trackInfo\.index\)/,"Player must retain the open pit-entry guardrail gap");
 assert.match(html,/!monacoPitOpening/,"Player collision must respect the pit-entry opening");
 assert.match(html,/const barrierTrackIndex=[\s\S]{0,140}const monacoPitOpening=/,"Second-car collision must use its own track sample");
-assert.match(html,/const side=-Math\.sign\(p2lateral\);[\s\S]{0,220}const correction=Math\.min\(penetration,Math\.max\(\.025,dt\*18\)\)/,"Second car must ease back from the guardrail smoothly");
+assert.match(html,/const side=-Math\.sign\(p2lateral\);[\s\S]{0,220}const correction=penetration/,"Second car must ease back from the guardrail smoothly");
 assert.match(html,/isInPitCorridor\(barrierTrackIndex\)/,"Second-car collision must respect the pit-entry opening");
 assert.ok((html.match(/MONACO_TRACK_HALF_WIDTH\+3\.6/g)||[]).length>=2,"Both player and second-car hitboxes must use Monaco guardrail position");
+
+assert.match(html,/headingBlend=\\s*\\(1-Math\\.exp\\(-dt\\*16\\)\\)/,"Player guardrail response must redirect quickly but smoothly");
+assert.match(html,/ai\\.mesh\\.rotation\\.y\\+=headingError\\*\\s*\\(1-Math\\.exp\\(-dt\\*16\\)\\)/,"Second-car guardrail response must use the same smooth redirect rate");
+
+// Regression model: exact boundary resolution prevents high-speed
+// tunnelling, while gradual heading response preserves tangent speed.
+const railLimit=25.6;
+const beforeContact=28.4;
+const penetration=beforeContact-railLimit;
+const afterCorrection=beforeContact-penetration;
+assert.ok(Math.abs(afterCorrection-railLimit)<1e-9,"High-speed contact must finish on the legal side of the barrier");
+const response=1-Math.exp(-(1/60)*16);
+let outwardAngle=Math.PI/4;
+for(let frame=0;frame<12;frame++) outwardAngle*=1-response;
+assert.ok(outwardAngle<.04,"Glancing contact must smoothly turn the car along the rail");
+const speed=80;
+assert.ok(speed*Math.cos(outwardAngle)>79.9,"Tangent speed must be preserved during a glancing impact");
+
 for (const removed of ["addBuilding(","buildingInstances","yachtSpots","crowdGeo","tunnelStart","Casino de Monte-Carlo","Hotel de Paris","Street lamps","TreeGeometry"]) {
   assert.ok(!builder.includes(removed), `Monaco track-only builder must not contain ${removed}`);
 }
