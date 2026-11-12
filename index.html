@@ -37314,23 +37314,22 @@ function loadMonacoWorld(){
     });
     tunnelGeometry.computeVertexNormals();
     const tunnelConcrete=new THREE.MeshStandardMaterial({color:0x77736d,roughness:.94});
-    const tunnelInterior=new THREE.MeshStandardMaterial({color:0x30383b,roughness:.9,side:THREE.DoubleSide});
+    const tunnelInterior=new THREE.MeshStandardMaterial({color:0x202629,roughness:.96,side:THREE.DoubleSide});
     const tunnelGroup=new THREE.Group();
     tunnelGroup.name="monacoGrandPrixTunnel";
     monacoWorld.add(tunnelGroup);
-    const tunnelStartIndex=151,tunnelEndIndex=205,tunnelStep=2;
+    /* Portier exit through the full harbour-side tunnel to the Nouvelle
+       Chicane: sampled along the mapped centreline, about 500 m long. */
+    const tunnelStartIndex=620,tunnelEndIndex=850,tunnelStep=2;
     for(let i=tunnelStartIndex;i<tunnelEndIndex;i+=tunnelStep){
         const sample=getTrackSample(i);
-        const segment=new THREE.Mesh(tunnelGeometry,tunnelConcrete);
+        const segment=new THREE.Mesh(tunnelGeometry,[tunnelConcrete,tunnelInterior]);
         segment.position.set(sample.p.x,sample.p.y-1.25,sample.p.z);
         segment.rotation.y=getTrackTangentAngle(sample);
         segment.castShadow=true;segment.receiveShadow=true;
         tunnelGroup.add(segment);
     }
-    /* Heavy portal frames and dark recessed mouths distinguish the tunnel
-       from a simple roof over the road. */
-    /* Reuse the hollow arch profile for portal collars so the entrance
-       remains open for cars; never cap the tunnel mouth with solid geometry. */
+    /* Hollow stone portal collars keep both mouths completely open. */
     const portalGeo=new THREE.ExtrudeGeometry(tunnelShape,{depth:4,bevelEnabled:false,curveSegments:16});
     const portalMat=new THREE.MeshStandardMaterial({color:0xbbb7ad,roughness:.9});
     for(const index of [tunnelStartIndex,tunnelEndIndex]){
@@ -37341,15 +37340,20 @@ function loadMonacoWorld(){
         portal.castShadow=true;portal.receiveShadow=true;
         tunnelGroup.add(portal);
     }
-    const tunnelLightMat=new THREE.MeshStandardMaterial({color:0xffe5b2,emissive:0xffc66b,emissiveIntensity:1.4});
-    for(let i=tunnelStartIndex+5;i<tunnelEndIndex;i+=10){
+    /* The interior is deliberately unlit by scenery or daylight meshes.
+       Real point lights and recessed fixtures provide the only tunnel light. */
+    const tunnelLightMat=new THREE.MeshStandardMaterial({color:0xffe5b2,emissive:0xffc66b,emissiveIntensity:1.8});
+    for(let i=tunnelStartIndex+6;i<tunnelEndIndex;i+=12){
         const sample=getTrackSample(i);
-        const light=new THREE.Mesh(new THREE.BoxGeometry(3,.5,1.4),tunnelLightMat);
+        const light=new THREE.Mesh(new THREE.BoxGeometry(3.2,.38,1.5),tunnelLightMat);
         light.position.set(sample.p.x,sample.p.y+22,sample.p.z);
         light.rotation.y=getTrackTangentAngle(sample);
         tunnelGroup.add(light);
+        const lamp=new THREE.PointLight(0xffdca0,4.2,54,2);
+        lamp.position.set(sample.p.x,sample.p.y+18,sample.p.z);
+        tunnelGroup.add(lamp);
     }
-    console.log("[TRACK] Monaco tunnel built along the Portier-to-chicane section");
+    console.log("[TRACK] Monaco tunnel rebuilt over the mapped Portier-to-Nouvelle-Chicane section");
 
     /* Mediterranean palms, clipped ornamental trees and landscaped
        pockets, instanced to keep the large environment inexpensive. */
@@ -37395,28 +37399,49 @@ function loadMonacoWorld(){
     gardenTrees.count=gardenCount;gardenTrees.instanceMatrix.needsUpdate=true;
     monacoWorld.add(gardenTrees);
 
-    /* A proper marina: moored yachts with white hulls, decks and cabins. */
-    const yachtHullMat=new THREE.MeshStandardMaterial({color:0xf5f3ed,roughness:.38,metalness:.08});
-    const yachtGlassMat=new THREE.MeshStandardMaterial({color:0x7faab5,roughness:.18,metalness:.12});
-    const yachtHullGeo=new THREE.BoxGeometry(1,1,1);
+    /* Port Hercule yachts float at the waterline, with tapered hulls,
+       proper cabins and clear slips between the marina fingers. */
+    const yachtHullMat=new THREE.MeshStandardMaterial({color:0xf5f3ed,roughness:.34,metalness:.08});
+    const yachtDeckMat=new THREE.MeshStandardMaterial({color:0xd8d2c5,roughness:.72});
+    const yachtGlassMat=new THREE.MeshStandardMaterial({color:0x315b69,roughness:.2,metalness:.12});
+    const yachtHullGeo=new THREE.CapsuleGeometry(4.2,39,4,10);
     const yachtCabinGeo=new THREE.BoxGeometry(1,1,1);
-    for(let i=0;i<13;i++){
-        const z=harbourZ-150+Math.floor(i/3)*72+(i%2)*8;
-        const x=harbourX-108+(i%3)*108;
+    const yachtDeckGeo=new THREE.BoxGeometry(1,1,1);
+    for(let i=0;i<12;i++){
+        const row=Math.floor(i/3),col=i%3;
+        const z=harbourZ-145+row*92+(col%2)*7;
+        const x=harbourX-108+col*108;
         const yacht=new THREE.Group();
         const hull=new THREE.Mesh(yachtHullGeo,yachtHullMat);
-        hull.scale.set(48+(i%4)*10,4.2,10+(i%3)*2);
-        hull.position.y=1.4;yacht.add(hull);
-        const deck=new THREE.Mesh(yachtCabinGeo,yachtGlassMat);
-        deck.scale.set(20,5,8);deck.position.set(-3,5.6,0);yacht.add(deck);
-        const bow=new THREE.Mesh(new THREE.ConeGeometry(5,15,4),yachtHullMat);
-        bow.rotation.z=-Math.PI/2;bow.position.set(27,1.4,0);yacht.add(bow);
-        yacht.position.set(x,-1.0,z);
+        hull.rotation.z=Math.PI/2;
+        hull.scale.set(.55,(48+(i%4)*10)/48.4,.9);
+        hull.position.y=1.1;
+        yacht.add(hull);
+        const deck=new THREE.Mesh(yachtDeckGeo,yachtDeckMat);
+        deck.scale.set(23,.38,9.2);deck.position.set(-2,1.45,0);
+        yacht.add(deck);
+        const cabin=new THREE.Mesh(yachtCabinGeo,yachtGlassMat);
+        cabin.scale.set(17,3.2,7.2);cabin.position.set(-5,3.15,0);
+        yacht.add(cabin);
+        const windscreen=new THREE.Mesh(new THREE.BoxGeometry(8,1.5,7.35),yachtGlassMat);
+        windscreen.position.set(3.5,3.25,0);yacht.add(windscreen);
+        const bowRail=new THREE.Mesh(new THREE.BoxGeometry(12,.16,.16),yachtHullMat);
+        bowRail.position.set(16,2.1,0);yacht.add(bowRail);
+        const mast=new THREE.Mesh(new THREE.CylinderGeometry(.09,.12,8,6),yachtHullMat);
+        mast.position.set(-12,6.8,0);yacht.add(mast);
+        yacht.position.set(x,-1.02,z);
         yacht.rotation.y=(i%2===0?0:Math.PI)+.08;
+        yacht.userData.floatingOnHarbour=true;
         monacoWorld.add(yacht);
     }
-    /* Quayside piers and mooring fingers. */
+    /* Two marina fingers sit between the yacht lanes, never underneath hulls. */
     const pierMat=new THREE.MeshStandardMaterial({color:0xb6a995,roughness:.9});
+    for(const xOffset of [-54,54]){
+        const finger=new THREE.Mesh(new THREE.BoxGeometry(4,1.1,harbourDepth*.72),pierMat);
+        finger.position.set(harbourX+xOffset,-.35,harbourZ+5);
+        monacoWorld.add(finger);
+    }
+    /* Quayside piers and mooring fingers. */
     for(let i=0;i<8;i++){
         const pier=new THREE.Mesh(new THREE.BoxGeometry(8,1.5,Math.max(32,spanZ*.055)),pierMat);
         pier.position.set(harbourX-185,-.15,harbourZ-220+i*62);
@@ -37488,27 +37513,7 @@ function loadMonacoWorld(){
     road.userData.trackSurface=true;
     monacoWorld.add(road);
 
-    /* Continuous white edge lines and corner kerbs follow the
-       exact same centreline and normals as the racing surface. */
-    const edgeMat=new THREE.MeshStandardMaterial({color:0xf4f3ed,roughness:.8});
-    const edgeGeo=new THREE.BoxGeometry(.28,.055,METERS_PER_SAMPLE*2.5);
-    const edges=new THREE.InstancedMesh(edgeGeo,edgeMat,Math.ceil(TRACK_SAMPLES/2)*2);
-    const edgeObj=new THREE.Object3D();
-    let edgeCount=0;
-    for(let i=0;i<TRACK_SAMPLES;i+=2){
-        const d=getTrackSample(i);
-        for(const side of [-1,1]){
-            edgeObj.position.copy(d.p).addScaledVector(d.normal,side*(MONACO_TRACK_HALF_WIDTH-.16));
-            edgeObj.position.y=d.p.y+.06;
-            edgeObj.rotation.set(0,getTrackTangentAngle(d),0);
-            pitchToGrade(edgeObj,i);
-            edgeObj.updateMatrix();
-            edges.setMatrixAt(edgeCount++,edgeObj.matrix);
-        }
-    }
-    edges.count=edgeCount;
-    edges.instanceMatrix.needsUpdate=true;
-    monacoWorld.add(edges);
+    /* Removed the continuous white road-edge strips; kerbs and start/finish markings remain. */
 
     const kerbMatA=new THREE.MeshStandardMaterial({color:0xe7e5df,roughness:.9});
     const kerbMatB=new THREE.MeshStandardMaterial({color:0xd52b32,roughness:.9});
