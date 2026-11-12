@@ -203,8 +203,8 @@ assert.match(builder,/const clearOfCircuit=\(x,z,minDistance=68\)/,"Scenery must
 assert.match(builder,/new THREE\.PlaneGeometry\(5200,5200\)/,"Monaco must have a large Mediterranean sea backdrop");
 assert.match(builder,/insideHarbour\(x,z,22\)/,"City buildings must not cover the marina basin");
 assert.match(builder,/for\(let i=0;i<6;i\+\+\)/,"Harbour must contain six individually modelled yachts");
-assert.match(builder,/const harbourX=centerX+12/,"Marina must be positioned beside the real mapped harbour-side district");
-assert.match(builder,/const harbourZ=centerZ\+183/,"Marina must be positioned beside the real mapped harbour-side district");
+assert.match(builder,/const harbourX=centerX\\+12/,"Marina must be positioned beside the real mapped harbour-side district");
+assert.match(builder,/const harbourZ=centerZ\\+183/,"Marina must be positioned beside the real mapped harbour-side district");
 assert.match(builder,/const harbourDepth=200/,"Marina must use the compact clear basin footprint");
 assert.match(builder,/new THREE\.ShapeGeometry\(harbourShape,32\)/,"Marina water must follow an irregular curved shoreline");
 assert.match(builder,/new THREE\.BoxGeometry\(5,1\.1,142\)/,"Marina must use one central finger pier, not a grid of docks");
