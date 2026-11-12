@@ -1,3 +1,4 @@
+// Re-run CI after tightening the Monaco boundary assertions.
 import fs from "node:fs";
 import assert from "node:assert/strict";
 
