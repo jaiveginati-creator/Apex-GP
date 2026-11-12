@@ -132,13 +132,13 @@ assert.match(builder,/createRibbon\(MONACO_TRACK_HALF_WIDTH,\.015,asphaltMateria
 assert.match(builder,/buildPitStrip\(/,"Pit lane must remain");
 assert.match(builder,/isNearKerbCorner\(/,"Kerbs must follow mapped corner positions");
 assert.match(builder,/startLine/,"Start/finish line must remain");
-assert.match(builder,/const monacoGlassMat=new THREE\\.MeshPhysicalMaterial/,"Monaco must use transparent physical glass panels");
-assert.match(builder,/new THREE\\.BoxGeometry\\(\\.16,2\\.45,METERS_PER_SAMPLE\\*4\\.08\\)/,"Glass guardrails must form continuous road-edge panels");
-assert.match(builder,/MONACO_TRACK_HALF_WIDTH\\+4\\.6/,"Guardrails must sit outside the road and kerbs");
-assert.match(builder,/if\\(side===PIT_SIDE&&isInPitCorridor\\(i\\)\\)continue/,"Pit entry and exit must remain open");
+assert.match(builder,/const monacoGlassMat=new THREE\.MeshPhysicalMaterial/,"Monaco must use transparent physical glass panels");
+assert.match(builder,/new THREE\.BoxGeometry\(\.16,2\.45,METERS_PER_SAMPLE\*4\.08\)/,"Glass guardrails must form continuous road-edge panels");
+assert.match(builder,/MONACO_TRACK_HALF_WIDTH\+4\.6/,"Guardrails must sit outside the road and kerbs");
+assert.match(builder,/if\(side===PIT_SIDE&&isInPitCorridor\(i\)\)continue/,"Pit entry and exit must remain open");
 assert.match(builder,/monacoGuardrailPosts/,"Glass barriers must have visible support posts");
 assert.match(builder,/monacoGuardrailCaps/,"Glass barriers must have a continuous top rail");
-assert.match(html,/const side=-Math\.sign\(trackInfo\.lateral\);[\s\S]{0,240}const correction=penetration/,"Player must ease back from the guardrail with a capped smooth correction");
+assert.match(html,/const side=-Math\.sign\(trackInfo\.lateral\);[\s\S]{0,240}const correction=penetration/,"Player must resolve the complete player overlap at the guardrail");
 assert.match(html,/physics\.collisionVelocity\.dot\(trackInfo\.sample\.normal\)/,"Outward drift must be damped at the Monaco barrier");
 assert.match(html,/outwardVelocity\*\.72/,"Guardrail response must damp outward velocity without deleting tangential movement");
 assert.match(html,/physics\.collisionCooldown=\.42/,"Player guardrail impact must use a short impact cooldown");
@@ -149,12 +149,12 @@ assert.match(html,/activeTrackId==="monaco"\s*\?MONACO_TRACK_HALF_WIDTH\+3\.6\s*
 assert.match(html,/const monacoPitOpening=[\s\S]{0,180}isInPitCorridor\(trackInfo\.index\)/,"Player must retain the open pit-entry guardrail gap");
 assert.match(html,/!monacoPitOpening/,"Player collision must respect the pit-entry opening");
 assert.match(html,/const barrierTrackIndex=[\s\S]{0,140}const monacoPitOpening=/,"Second-car collision must use its own track sample");
-assert.match(html,/const side=-Math\.sign\(p2lateral\);[\s\S]{0,220}const correction=penetration/,"Second car must ease back from the guardrail smoothly");
+assert.match(html,/const side=-Math\.sign\(p2lateral\);[\s\S]{0,220}const correction=penetration/,"Second car must resolve the complete P2 overlap at the guardrail");
 assert.match(html,/isInPitCorridor\(barrierTrackIndex\)/,"Second-car collision must respect the pit-entry opening");
 assert.ok((html.match(/MONACO_TRACK_HALF_WIDTH\+3\.6/g)||[]).length>=2,"Both player and second-car hitboxes must use Monaco guardrail position");
 
-assert.match(html,/headingBlend=\\s*\\(1-Math\\.exp\\(-dt\\*16\\)\\)/,"Player guardrail response must redirect quickly but smoothly");
-assert.match(html,/ai\\.mesh\\.rotation\\.y\\+=headingError\\*\\s*\\(1-Math\\.exp\\(-dt\\*16\\)\\)/,"Second-car guardrail response must use the same smooth redirect rate");
+assert.match(html,/headingBlend=\s*\(1-Math\.exp\(-dt\*16\)\)/,"Player guardrail response must redirect quickly but smoothly");
+assert.match(html,/ai\.mesh\.rotation\.y\+=headingError\*\s*\(1-Math\.exp\(-dt\*16\)\)/,"Second-car guardrail response must use the same smooth redirect rate");
 
 // Regression model: exact boundary resolution prevents high-speed
 // tunnelling, while gradual heading response preserves tangent speed.
