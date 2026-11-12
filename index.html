@@ -37087,7 +37087,7 @@ function loadMonacoWorld(){
 
     if(monacoWorldBuilt)return;
 
-    console.log("[TRACK] building Monaco track-only scene...");
+    console.log("[TRACK] building Monaco and Monte Carlo environment...");
     while(monacoWorld.children.length)monacoWorld.remove(monacoWorld.children[0]);
     if(!footprintsByTrack.jeddah)saveFootprints("jeddah");
 
@@ -37104,22 +37104,248 @@ function loadMonacoWorld(){
         bounds.maxZ=Math.max(bounds.maxZ,p.z);
     }
 
-    /* A single neutral surface gives the mapped route a clean,
-       unobstructed background. No city, trees, harbour or props. */
-    const groundW=bounds.maxX-bounds.minX+260;
-    const groundD=bounds.maxZ-bounds.minZ+260;
+    /* Mediterranean sea and the pale stone peninsula of Monte Carlo. */
+    const centerX=(bounds.maxX+bounds.minX)/2;
+    const centerZ=(bounds.maxZ+bounds.minZ)/2;
+    const spanX=bounds.maxX-bounds.minX;
+    const spanZ=bounds.maxZ-bounds.minZ;
+    const sea=new THREE.Mesh(
+        new THREE.PlaneGeometry(5200,5200),
+        new THREE.MeshStandardMaterial({color:0x176b83,roughness:.28,metalness:.12})
+    );
+    sea.rotation.x=-Math.PI/2;
+    sea.position.set(centerX,-2.05,centerZ);
+    monacoWorld.add(sea);
+    const groundW=spanX+620;
+    const groundD=spanZ+620;
     const ground=new THREE.Mesh(
         new THREE.PlaneGeometry(groundW,groundD),
-        new THREE.MeshStandardMaterial({color:0x55595d,roughness:1})
+        new THREE.MeshStandardMaterial({color:0xc8bca4,roughness:.96})
     );
     ground.rotation.x=-Math.PI/2;
-    ground.position.set(
-        (bounds.maxX+bounds.minX)/2,
-        -1.35,
-        (bounds.maxZ+bounds.minZ)/2
-    );
+    ground.position.set(centerX,-1.35,centerZ);
     ground.receiveShadow=true;
     monacoWorld.add(ground);
+
+    /* A sheltered harbour basin on the eastern waterfront. It sits well
+       outside the mapped circuit and is framed by stone quays and piers. */
+    const harbourX=bounds.maxX+170;
+    const harbourZ=centerZ;
+    const harbour=new THREE.Mesh(
+        new THREE.PlaneGeometry(430,Math.max(520,spanZ*.72)),
+        new THREE.MeshStandardMaterial({color:0x247f98,roughness:.22,metalness:.16})
+    );
+    harbour.rotation.x=-Math.PI/2;
+    harbour.position.set(harbourX,-1.08,harbourZ);
+    monacoWorld.add(harbour);
+    const quayMat=new THREE.MeshStandardMaterial({color:0xd4c9b6,roughness:.9});
+    for(let side of [-1,1]){
+        const quay=new THREE.Mesh(new THREE.BoxGeometry(455,2.1,8),quayMat);
+        quay.position.set(harbourX, -.15, harbourZ+side*Math.max(260,spanZ*.36));
+        monacoWorld.add(quay);
+    }
+
+    /* Cache the mapped centreline for fast exclusion checks. Every scenic
+       object stays at least 68 m from the racing surface and glass rails. */
+    const monacoClearance=[];
+    for(let i=0;i<TRACK_SAMPLES;i+=12){
+        const p=getTrackSample(i).p;
+        monacoClearance.push({x:p.x,z:p.z});
+    }
+    const clearOfCircuit=(x,z,minDistance=68)=>{
+        for(const p of monacoClearance){
+            const dx=x-p.x,dz=z-p.z;
+            if(dx*dx+dz*dz<minDistance*minDistance)return false;
+        }
+        return true;
+    };
+    const cityMaterials=[
+        0xf0e3cf,0xe6d5bd,0xd8c5ac,0xf4e9d9,0xcbb99f,
+        0xe8d9c4,0xd2c0a8,0xf5eadb
+    ].map(color=>new THREE.MeshStandardMaterial({color,roughness:.88}));
+    const buildingGeo=new THREE.BoxGeometry(1,1,1);
+    const roofGeo=new THREE.BoxGeometry(1,1,1);
+    const roofMat=new THREE.MeshStandardMaterial({color:0x76675c,roughness:.92});
+    const cityGroup=new THREE.Group();
+    cityGroup.name="monacoMonteCarloCity";
+    monacoWorld.add(cityGroup);
+    let buildingCount=0;
+    const addBuilding=(x,z,w,d,h,materialIndex=0,landmark="")=>{
+        if(!clearOfCircuit(x,z,landmark?78:68))return false;
+        const baseY=-1.35;
+        const body=new THREE.Mesh(buildingGeo,cityMaterials[materialIndex%cityMaterials.length]);
+        body.position.set(x,baseY+h/2,z);
+        body.scale.set(w,h,d);
+        body.castShadow=true;body.receiveShadow=true;
+        body.userData.landmark=landmark;
+        cityGroup.add(body);
+        const roof=new THREE.Mesh(roofGeo,roofMat);
+        roof.position.set(x,baseY+h+.8,z);
+        roof.scale.set(w+1.4,1.6,d+1.4);
+        cityGroup.add(roof);
+        buildingCount++;
+        return true;
+    };
+
+    /* Dense apartment blocks on the hills surrounding the harbour. */
+    let citySeed=41;
+    const cityRand=()=>{
+        citySeed=(citySeed*1664525+1013904223)>>>0;
+        return citySeed/4294967296;
+    };
+    for(let gx=-5;gx<=5;gx++){
+        for(let gz=-5;gz<=5;gz++){
+            const x=centerX+gx*78+(cityRand()-.5)*28;
+            const z=centerZ+gz*76+(cityRand()-.5)*26;
+            if(!clearOfCircuit(x,z,72))continue;
+            const floors=4+Math.floor(cityRand()*10);
+            const w=30+cityRand()*24,d=28+cityRand()*24;
+            addBuilding(x,z,w,d,floors*5.2,Math.floor(cityRand()*cityMaterials.length));
+        }
+    }
+    /* Recognisable landmark silhouettes: Casino de Monte-Carlo and the
+       Hotel de Paris, each placed on the city edge, not beside the racing line. */
+    addBuilding(centerX-spanX*.34, bounds.minZ-138,112,72,34,3,"Casino de Monte-Carlo");
+    addBuilding(centerX-spanX*.34+66,bounds.minZ-138,48,58,51,0,"Hotel de Paris");
+    addBuilding(bounds.minX-145,centerZ+spanZ*.28,74,64,58,1,"Monte Carlo hillside hotel");
+
+    /* Waterfront villas and a layered hillside skyline. */
+    for(let i=0;i<22;i++){
+        const x=bounds.minX-120+(i%6)*78+(cityRand()-.5)*18;
+        const z=bounds.minZ-90+Math.floor(i/6)*92+(cityRand()-.5)*18;
+        addBuilding(x,z,34+cityRand()*20,30+cityRand()*18,22+cityRand()*42,Math.floor(cityRand()*cityMaterials.length));
+    }
+    for(let i=0;i<18;i++){
+        const x=bounds.maxX+365+(cityRand()-.5)*150;
+        const z=bounds.minZ-170+i*22;
+        addBuilding(x,z,34+cityRand()*28,30+cityRand()*25,24+cityRand()*48,Math.floor(cityRand()*cityMaterials.length));
+    }
+
+    /* Mediterranean palms, clipped ornamental trees and landscaped
+       pockets, instanced to keep the large environment inexpensive. */
+    const palmTrunkGeo=new THREE.CylinderGeometry(.42,.72,9,7);
+    const palmLeafGeo=new THREE.ConeGeometry(3.1,7.5,7);
+    const palmTrunkMat=new THREE.MeshStandardMaterial({color:0x806044,roughness:1});
+    const palmLeafMat=new THREE.MeshStandardMaterial({color:0x39764d,roughness:.9});
+    const palmTrunks=new THREE.InstancedMesh(palmTrunkGeo,palmTrunkMat,110);
+    const palmLeaves=new THREE.InstancedMesh(palmLeafGeo,palmLeafMat,110);
+    const treeObject=new THREE.Object3D();
+    let palmCount=0;
+    for(let i=0;i<110;i++){
+        const a=cityRand()*Math.PI*2;
+        const r=110+cityRand()*Math.max(spanX,spanZ)*.48;
+        const x=centerX+Math.cos(a)*r,z=centerZ+Math.sin(a)*r;
+        if(!clearOfCircuit(x,z,64))continue;
+        treeObject.position.set(x,3.1,z);
+        treeObject.rotation.set(0,cityRand()*Math.PI*2,0);
+        treeObject.scale.setScalar(.75+cityRand()*.55);
+        treeObject.updateMatrix();palmTrunks.setMatrixAt(palmCount,treeObject.matrix);
+        treeObject.position.y=9.2;
+        treeObject.scale.setScalar(.8+cityRand()*.5);
+        treeObject.updateMatrix();palmLeaves.setMatrixAt(palmCount,treeObject.matrix);
+        palmCount++;
+    }
+    palmTrunks.count=palmCount;palmLeaves.count=palmCount;
+    palmTrunks.instanceMatrix.needsUpdate=true;palmLeaves.instanceMatrix.needsUpdate=true;
+    monacoWorld.add(palmTrunks);monacoWorld.add(palmLeaves);
+
+    const gardenTreeGeo=new THREE.SphereGeometry(3.8,8,7);
+    const gardenTreeMat=new THREE.MeshStandardMaterial({color:0x47734a,roughness:1});
+    const gardenTrees=new THREE.InstancedMesh(gardenTreeGeo,gardenTreeMat,150);
+    let gardenCount=0;
+    for(let i=0;i<150;i++){
+        const x=centerX+(cityRand()-.5)*(spanX+520);
+        const z=centerZ+(cityRand()-.5)*(spanZ+520);
+        if(!clearOfCircuit(x,z,66))continue;
+        treeObject.position.set(x,2.5,z);
+        treeObject.scale.set(1,1.25,1);
+        treeObject.rotation.set(0,cityRand()*Math.PI,0);
+        treeObject.updateMatrix();gardenTrees.setMatrixAt(gardenCount++,treeObject.matrix);
+    }
+    gardenTrees.count=gardenCount;gardenTrees.instanceMatrix.needsUpdate=true;
+    monacoWorld.add(gardenTrees);
+
+    /* A proper marina: moored yachts with white hulls, decks and cabins. */
+    const yachtHullMat=new THREE.MeshStandardMaterial({color:0xf5f3ed,roughness:.38,metalness:.08});
+    const yachtGlassMat=new THREE.MeshStandardMaterial({color:0x7faab5,roughness:.18,metalness:.12});
+    const yachtHullGeo=new THREE.BoxGeometry(1,1,1);
+    const yachtCabinGeo=new THREE.BoxGeometry(1,1,1);
+    for(let i=0;i<11;i++){
+        const z=harbourZ-(Math.max(520,spanZ*.72)*.42)+i*(Math.max(520,spanZ*.72)*.084);
+        const x=harbourX+(i%2===0?-74:78);
+        const yacht=new THREE.Group();
+        const hull=new THREE.Mesh(yachtHullGeo,yachtHullMat);
+        hull.scale.set(48+(i%4)*10,4.2,10+(i%3)*2);
+        hull.position.y=1.4;yacht.add(hull);
+        const deck=new THREE.Mesh(yachtCabinGeo,yachtGlassMat);
+        deck.scale.set(20,5,8);deck.position.set(-3,5.6,0);yacht.add(deck);
+        const bow=new THREE.Mesh(new THREE.ConeGeometry(5,15,4),yachtHullMat);
+        bow.rotation.z=-Math.PI/2;bow.position.set(27,1.4,0);yacht.add(bow);
+        yacht.position.set(x,-1.0,z);
+        yacht.rotation.y=(i%2===0?0:Math.PI)+.08;
+        monacoWorld.add(yacht);
+    }
+    /* Quayside piers and mooring fingers. */
+    const pierMat=new THREE.MeshStandardMaterial({color:0xb6a995,roughness:.9});
+    for(let i=0;i<8;i++){
+        const pier=new THREE.Mesh(new THREE.BoxGeometry(8,1.5,Math.max(32,spanZ*.055)),pierMat);
+        pier.position.set(harbourX-185,-.15,harbourZ-220+i*62);
+        monacoWorld.add(pier);
+    }
+
+    /* Trackside grandstands, hospitality decks and spectator seating. */
+    const standMat=new THREE.MeshStandardMaterial({color:0x46515a,roughness:.85});
+    const seatMat=new THREE.MeshStandardMaterial({color:0xd6d1c7,roughness:.8});
+    for(const sampleIndex of [115,330,585,840,1110,1370]){
+        const sample=getTrackSample(sampleIndex);
+        for(const side of [-1,1]){
+            if(side===PIT_SIDE&&isInPitCorridor(sampleIndex))continue;
+            const pos=sample.p.clone().addScaledVector(sample.normal,side*57);
+            if(!clearOfCircuit(pos.x,pos.z,50))continue;
+            const stand=new THREE.Group();
+            const base=new THREE.Mesh(new THREE.BoxGeometry(62,5,18),standMat);
+            base.position.y=2.5;stand.add(base);
+            for(let row=0;row<4;row++){
+                const tier=new THREE.Mesh(new THREE.BoxGeometry(58-row*3,1.2,3.2),seatMat);
+                tier.position.set(0,5+row*2.1,-5+row*3.2);stand.add(tier);
+            }
+            const canopy=new THREE.Mesh(new THREE.BoxGeometry(64,.9,20),
+                new THREE.MeshStandardMaterial({color:0xf0eee7,roughness:.55,metalness:.12}));
+            canopy.position.y=14;stand.add(canopy);
+            stand.position.set(pos.x,-1.25,pos.z);
+            stand.rotation.y=getTrackTangentAngle(sample);
+            monacoWorld.add(stand);
+        }
+    }
+
+    /* Street lighting follows the circuit's outer city streets without
+       placing poles in the racing corridor. */
+    const lampMat=new THREE.MeshStandardMaterial({color:0x313b40,metalness:.7,roughness:.38});
+    const lampGeo=new THREE.CylinderGeometry(.18,.26,7,7);
+    const lampHeadGeo=new THREE.BoxGeometry(1.6,.35,.65);
+    for(let i=0;i<TRACK_SAMPLES;i+=44){
+        const sample=getTrackSample(i);
+        for(const side of [-1,1]){
+            const pos=sample.p.clone().addScaledVector(sample.normal,side*43);
+            if(!clearOfCircuit(pos.x,pos.z,38))continue;
+            const pole=new THREE.Mesh(lampGeo,lampMat);
+            pole.position.set(pos.x,2.2,pos.z);monacoWorld.add(pole);
+            const head=new THREE.Mesh(lampHeadGeo,lampMat);
+            head.position.set(pos.x,5.7,pos.z);monacoWorld.add(head);
+        }
+    }
+
+    /* Monaco hills rise behind the city, with pale limestone outcrops. */
+    const hillMat=new THREE.MeshStandardMaterial({color:0x8e9b78,roughness:1});
+    for(let i=0;i<18;i++){
+        const a=i/18*Math.PI*2;
+        const r=Math.max(spanX,spanZ)*.78+260;
+        const hill=new THREE.Mesh(new THREE.ConeGeometry(95+cityRand()*95,150+cityRand()*130,8),hillMat);
+        hill.position.set(centerX+Math.cos(a)*r,65,centerZ+Math.sin(a)*r);
+        hill.rotation.z=(cityRand()-.5)*.12;
+        monacoWorld.add(hill);
+    }
+    console.log("[TRACK] Monaco environment ready: Monte Carlo city, Casino Square, harbour, yachts, palms, hills, grandstands and street lighting");
 
     /* Wider continuous asphalt with a narrow concrete shoulder. */
     const apronMat=new THREE.MeshStandardMaterial({color:0x858789,roughness:.96});
@@ -37244,15 +37470,14 @@ function loadMonacoWorld(){
     monacoWorld.add(monacoGuardrailPosts);
     monacoWorld.add(monacoGuardrailCaps);
 
-    /* Keep the mapped pit lane and pit-entry/exit geometry;
-       no garages, grandstands, buildings or surrounding props. */
+    /* Keep the mapped pit lane and pit-entry/exit geometry unchanged. */
     monacoWorld.add(buildPitStrip(row=>pitInnerEdge(row),row=>pitOuterEdge(row),.035,pitAsphaltMaterial));
     monacoWorld.add(buildPitStrip(row=>pitInnerEdge(row),row=>pitInnerEdge(row)+PIT_SIDE*.35,.06,pitLineMaterial));
     monacoWorld.add(buildPitStrip(row=>pitOuterEdge(row)-PIT_SIDE*.35,row=>pitOuterEdge(row),.06,pitLineMaterial));
     monacoWorld.add(createPitCrossLine(PIT_LANE_START,pitYellowMaterial,.9));
     monacoWorld.add(createPitCrossLine(PIT_LIMIT_END,pitYellowMaterial,.9));
 
-    /* Start/finish stripe only: deliberately no gantry or scenery. */
+    /* Start/finish stripe remains on the original mapped centreline. */
     const startSample=getTrackSample(0);
     const startLine=new THREE.Mesh(
         new THREE.BoxGeometry(MONACO_TRACK_HALF_WIDTH*2,.07,1.4),
@@ -37269,7 +37494,7 @@ function loadMonacoWorld(){
     restoreFootprints("jeddah");
     monacoWorldBuilt=true;
     monacoWorld.visible=false;
-    console.log("[TRACK] Monaco rebuilt: 3.50 km, 44 m road width, 46 m+ non-local curve clearance, pit lane, kerbs and edge lines");
+    console.log("[TRACK] Monaco rebuilt: original circuit, pit lane, guardrails and full Monte Carlo environment");
 }
 
 function setActiveTrack(id){
