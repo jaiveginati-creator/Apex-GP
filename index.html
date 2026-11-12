@@ -37329,12 +37329,9 @@ function loadMonacoWorld(){
     }
     /* Heavy portal frames and dark recessed mouths distinguish the tunnel
        from a simple roof over the road. */
-    const portalShape=new THREE.Shape();
-    portalShape.moveTo(-36,0);portalShape.lineTo(-36,19);
-    portalShape.quadraticCurveTo(-36,34,0,35);
-    portalShape.quadraticCurveTo(36,34,36,19);
-    portalShape.lineTo(36,0);portalShape.lineTo(-36,0);
-    const portalGeo=new THREE.ExtrudeGeometry(portalShape,{depth:4,bevelEnabled:false,curveSegments:16});
+    /* Reuse the hollow arch profile for portal collars so the entrance
+       remains open for cars; never cap the tunnel mouth with solid geometry. */
+    const portalGeo=new THREE.ExtrudeGeometry(tunnelShape,{depth:4,bevelEnabled:false,curveSegments:16});
     const portalMat=new THREE.MeshStandardMaterial({color:0xbbb7ad,roughness:.9});
     for(const index of [tunnelStartIndex,tunnelEndIndex]){
         const sample=getTrackSample(index);
