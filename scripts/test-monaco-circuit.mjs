@@ -222,4 +222,10 @@ assert.match(builder,/new THREE\.PointLight\(0xffdca0,4\.2,54,2\)/,"Tunnel must 
 assert.match(builder,/tunnelGroup\.add\(segment\)/,"Tunnel segments must be parented to the Monaco world");
 assert.match(builder,/tunnelLightMat/,"Tunnel must include overhead lighting");
 assert.match(builder,/new THREE\.PlaneGeometry\(groundW,groundD\)/,"Only a flat neutral base should remain behind the circuit");
+assert.match(html,/function updateMonacoTunnelEntryFlash\(\)/,"Monaco tunnel entry must trigger a one-time visual exposure flash");
+assert.match(html,/index>=620&&index<630/,"Tunnel flash must trigger only at the mapped tunnel entrance");
+assert.match(html,/index>870\|\|index<600/,"Tunnel flash must re-arm only after the car exits the tunnel");
+assert.match(html,/monacoTunnelFlashOverlay\.animate\(\[\{opacity:0\},\{opacity:\.94,offset:\.08\},\{opacity:0\}\],\s*\{duration:520/,"Tunnel entry flash must be brief and fade out smoothly");
+assert.match(html,/updatePhysics\(dt\);[\s\S]{0,100}updateMonacoTunnelEntryFlash\(\);/,"Tunnel entry detection must run after live player physics");
+
 console.log(`Monaco checks passed: ${sourcePoints.length} mapped points, ${sourceLength.toFixed(0)}m source trace, 3.50 km lap, 44m road width, ${normalizedGap.toFixed(2)}m actual-curve clearance, pit lane and kerbs.`);
