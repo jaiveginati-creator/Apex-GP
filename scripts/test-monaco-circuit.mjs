@@ -121,12 +121,12 @@ const harbourBounds={
   minZ:Math.min(...normalizedSamples.map(p=>p[1])),
   maxZ:Math.max(...normalizedSamples.map(p=>p[1]))
 };
-const harbourCenterX=(harbourBounds.minX+harbourBounds.maxX)/2-25;
-const harbourCenterZ=(harbourBounds.minZ+harbourBounds.maxZ)/2+212;
+const harbourCenterX=(harbourBounds.minX+harbourBounds.maxX)/2+12;
+const harbourCenterZ=(harbourBounds.minZ+harbourBounds.maxZ)/2+183;
 let harbourRoadGap=Infinity;
 for(const [x,z] of normalizedSamples){
-  const dx=Math.max(Math.abs(x-harbourCenterX)-(220/2+12+12),0);
-  const dz=Math.max(Math.abs(z-harbourCenterZ)-(260/2+12+12),0);
+  const dx=Math.max(Math.abs(x-harbourCenterX)-(160/2+12+12),0);
+  const dz=Math.max(Math.abs(z-harbourCenterZ)-(200/2+12+12),0);
   harbourRoadGap=Math.min(harbourRoadGap,Math.hypot(dx,dz));
 }
 assert.ok(harbourRoadGap>=38, `Full Monaco harbour and quay footprint must stay at least 38m from the mapped road centreline; got ${harbourRoadGap.toFixed(1)}m`);
@@ -191,7 +191,7 @@ assert.ok(speed*Math.cos(outwardAngle)>79.9,"Tangent speed must be preserved dur
 
 for (const required of [
   "monacoMonteCarloCity","Casino de Monte-Carlo","Hotel de Paris",
-  "Mediterranean sea","Port Hercule","harbourWidth=220","yachtHullMat",
+  "Mediterranean sea","Port Hercule","harbourWidth=160","yachtHullMat",
   "palmTrunks","gardenTrees","Trackside grandstands","Street lighting",
   "Monaco hills","facadeWindows","facadeBalconies","monacoGrandPrixTunnel",
   "tunnelStartIndex=620","tunnelEndIndex=850","tunnelLightMat","new THREE.PointLight","new THREE.CapsuleGeometry","floatingOnHarbour"
