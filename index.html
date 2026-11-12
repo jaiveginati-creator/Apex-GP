@@ -37127,65 +37127,6 @@ function loadMonacoWorld(){
     ground.receiveShadow=true;
     monacoWorld.add(ground);
 
-    /* Port Hercule: move the entire marina into a clear waterfront pocket
-       beside the circuit. Its footprint is checked against the mapped road
-       before any quay, dock or yacht is placed. */
-    const harbourX=centerX-106;
-    const harbourZ=centerZ-393;
-    const harbourWidth=230;
-    const harbourDepth=280;
-    const harbour=new THREE.Mesh(
-        new THREE.PlaneGeometry(harbourWidth,harbourDepth),
-        new THREE.MeshPhysicalMaterial({
-            color:0x075b78,roughness:.17,metalness:.28,
-            clearcoat:.82,clearcoatRoughness:.12
-        })
-    );
-    harbour.rotation.x=-Math.PI/2;
-    harbour.position.set(harbourX,-1.02,harbourZ);
-    harbour.receiveShadow=true;
-    monacoWorld.add(harbour);
-
-    const quayMat=new THREE.MeshStandardMaterial({color:0xc8bca8,roughness:.86});
-    const quayFaceMat=new THREE.MeshStandardMaterial({color:0x777b78,roughness:.94});
-    const dockMat=new THREE.MeshStandardMaterial({color:0x776b5c,roughness:.92});
-    /* Heavy stone seawalls form a clean rectangular basin edge. */
-    for(const side of [-1,1]){
-        const quay=new THREE.Mesh(new THREE.BoxGeometry(harbourWidth+18,2.5,8),quayMat);
-        quay.position.set(harbourX,-.12,harbourZ+side*(harbourDepth/2+2));
-        quay.receiveShadow=true;monacoWorld.add(quay);
-        const face=new THREE.Mesh(new THREE.BoxGeometry(harbourWidth+18,1.4,1.2),quayFaceMat);
-        face.position.set(harbourX,-.92,harbourZ+side*(harbourDepth/2-1.4));
-        monacoWorld.add(face);
-    }
-    for(const side of [-1,1]){
-        const quay=new THREE.Mesh(new THREE.BoxGeometry(8,2.5,harbourDepth-4),quayMat);
-        quay.position.set(harbourX+side*(harbourWidth/2+2),-.12,harbourZ);
-        quay.receiveShadow=true;monacoWorld.add(quay);
-    }
-    /* Two narrow finger piers divide the basin into three unobstructed
-       yacht lanes. No dock spans across a boat or reaches the racing road. */
-    const dockGeo=new THREE.BoxGeometry(3.8,1.15,harbourDepth*.78);
-    for(const xOffset of [-43,43]){
-        const dock=new THREE.Mesh(dockGeo,dockMat);
-        dock.position.set(harbourX+xOffset,-.35,harbourZ);
-        dock.receiveShadow=true;monacoWorld.add(dock);
-        for(let j=0;j<7;j++){
-            const cleat=new THREE.Mesh(new THREE.BoxGeometry(1.2,.45,.35),quayFaceMat);
-            cleat.position.set(harbourX+xOffset,-.1,harbourZ-harbourDepth*.34+j*harbourDepth*.11);
-            monacoWorld.add(cleat);
-        }
-    }
-    /* Bollards only line the outer seawall, never the road or water lanes. */
-    const bollardMat=new THREE.MeshStandardMaterial({color:0x343b3c,metalness:.72,roughness:.4});
-    for(const side of [-1,1]){
-        for(let i=0;i<9;i++){
-            const bollard=new THREE.Mesh(new THREE.CylinderGeometry(.32,.42,.95,8),bollardMat);
-            bollard.position.set(harbourX-harbourWidth*.43+i*harbourWidth*.107,.52,harbourZ+side*(harbourDepth/2+1.2));
-            monacoWorld.add(bollard);
-        }
-    }
-
     /* Cache the mapped centreline for fast exclusion checks. Every scenic
        object stays at least 68 m from the racing surface and glass rails. */
     const monacoClearance=[];
@@ -37200,9 +37141,97 @@ function loadMonacoWorld(){
         }
         return true;
     };
+    /* Check the full footprint, not just an object's centre. Sample the
+       complete mapped centreline densely and keep a 38 m buffer from every
+       building, dock, stand and other scenery footprint. */
+    const clearFootprintOfCircuit=(x,z,width,depth,margin=14)=>{
+        const halfW=width/2+margin,halfD=depth/2+margin;
+        for(let i=0;i<TRACK_SAMPLES;i+=2){
+            const p=getTrackSample(i).p;
+            const dx=Math.max(Math.abs(p.x-x)-halfW,0);
+            const dz=Math.max(Math.abs(p.z-z)-halfD,0);
+            if(dx*dx+dz*dz<38*38)return false;
+        }
+        return true;
+    };
+    const harbourX=centerX+12;
+    const harbourZ=centerZ+183;
+    const harbourWidth=160;
+    const harbourDepth=200;
     const insideHarbour=(x,z,margin=0)=>
         Math.abs(x-harbourX)<harbourWidth/2+margin&&
         Math.abs(z-harbourZ)<harbourDepth/2+margin;
+
+    /* Port Hercule is an irregular marina basin, not a rectangular blue
+       platform. Its full footprint is checked against the actual track
+       before any water, quay, dock or yacht geometry is added. */
+    if(!clearFootprintOfCircuit(harbourX,harbourZ,harbourWidth+24,harbourDepth+24,12)){
+        throw new Error("Monaco Port Hercule footprint intersects the racing corridor");
+    }
+    const harbourShape=new THREE.Shape();
+    harbourShape.moveTo(-58,-91);
+    harbourShape.bezierCurveTo(-76,-74,-79,-42,-73,-13);
+    harbourShape.bezierCurveTo(-68,22,-51,66,-22,86);
+    harbourShape.bezierCurveTo(7,104,45,96,64,71);
+    harbourShape.bezierCurveTo(81,49,77,18,68,-13);
+    harbourShape.bezierCurveTo(58,-48,34,-82,2,-95);
+    harbourShape.bezierCurveTo(-22,-104,-44,-102,-58,-91);
+    harbourShape.closePath();
+    const harbour=new THREE.Mesh(
+        new THREE.ShapeGeometry(harbourShape,32),
+        new THREE.MeshPhysicalMaterial({
+            color:0x075b78,roughness:.16,metalness:.32,
+            clearcoat:1,clearcoatRoughness:.1
+        })
+    );
+    harbour.rotation.x=-Math.PI/2;
+    harbour.position.set(harbourX,-1.08,harbourZ);
+    harbour.receiveShadow=true;
+    monacoWorld.add(harbour);
+
+    const quayMat=new THREE.MeshStandardMaterial({color:0xc9bba5,roughness:.84});
+    const quayFaceMat=new THREE.MeshStandardMaterial({color:0x777b78,roughness:.95});
+    const dockMat=new THREE.MeshStandardMaterial({color:0x796d5d,roughness:.9});
+    /* A curved outer breakwater and a stone promenade follow the inlet edge. */
+    const breakwaterPoints=[
+        [-72,-66],[-79,-35],[-74,4],[-61,39],[-40,68],
+        [-13,88],[18,94],[49,79],[71,52]
+    ].map(([x,z])=>new THREE.Vector3(harbourX+x,-.02,harbourZ+z));
+    const breakwaterCurve=new THREE.CatmullRomCurve3(breakwaterPoints);
+    const breakwaterSamples=breakwaterCurve.getPoints(30);
+    for(let i=0;i<breakwaterSamples.length-1;i++){
+        const a=breakwaterSamples[i],b=breakwaterSamples[i+1];
+        const dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);
+        const wall=new THREE.Mesh(new THREE.BoxGeometry(length+1,2.1,6.5),quayMat);
+        wall.position.set((a.x+b.x)/2,.12,(a.z+b.z)/2);
+        wall.rotation.y=Math.atan2(dx,dz);
+        wall.receiveShadow=true;
+        if(clearFootprintOfCircuit(wall.position.x,wall.position.z,length+8,14,10))monacoWorld.add(wall);
+    }
+    const promenade=new THREE.Mesh(new THREE.BoxGeometry(100,.65,10),quayMat);
+    promenade.position.set(harbourX+2,.05,harbourZ-96);
+    promenade.rotation.y=-.12;
+    promenade.receiveShadow=true;
+    if(clearFootprintOfCircuit(promenade.position.x,promenade.position.z,106,16,10))monacoWorld.add(promenade);
+
+    /* One central finger pier with short side berths; leave open water around
+       every yacht instead of laying a grid of docks across the basin. */
+    const centralPier=new THREE.Mesh(new THREE.BoxGeometry(5,1.1,108),dockMat);
+    centralPier.position.set(harbourX+8,-.48,harbourZ+1);
+    monacoWorld.add(centralPier);
+    for(const xOffset of [-24,24]){
+        for(const zOffset of [-42,42]){
+            const finger=new THREE.Mesh(new THREE.BoxGeometry(42,1,3.8),dockMat);
+            finger.position.set(harbourX+xOffset,-.5,harbourZ+zOffset);
+            monacoWorld.add(finger);
+        }
+    }
+    const bollardMat=new THREE.MeshStandardMaterial({color:0x343b3c,metalness:.72,roughness:.4});
+    for(let i=0;i<12;i++){
+        const bollard=new THREE.Mesh(new THREE.CylinderGeometry(.28,.36,.85,8),bollardMat);
+        bollard.position.set(harbourX-57+i*10.5,-.02,harbourZ-96);
+        monacoWorld.add(bollard);
+    }
     const cityMaterials=[
         0xf0e3cf,0xe6d5bd,0xd8c5ac,0xf4e9d9,0xcbb99f,
         0xe8d9c4,0xd2c0a8,0xf5eadb
@@ -37224,7 +37253,7 @@ function loadMonacoWorld(){
     cityGroup.add(facadeWindows);cityGroup.add(facadeBalconies);
     let buildingCount=0;
     const addBuilding=(x,z,w,d,h,materialIndex=0,landmark="")=>{
-        if(!clearOfCircuit(x,z,landmark?78:68)||insideHarbour(x,z,22))return false;
+        if(!clearFootprintOfCircuit(x,z,w,d,landmark?24:18)||insideHarbour(x,z,22))return false;
         const baseY=-1.35;
         const body=new THREE.Mesh(buildingGeo,cityMaterials[materialIndex%cityMaterials.length]);
         body.position.set(x,baseY+h/2,z);
@@ -37413,37 +37442,40 @@ function loadMonacoWorld(){
     gardenTrees.count=gardenCount;gardenTrees.instanceMatrix.needsUpdate=true;
     monacoWorld.add(gardenTrees);
 
-    /* Nine detailed motor yachts sit in three clear marina lanes. */
-    const yachtHullMat=new THREE.MeshStandardMaterial({color:0xf2eee5,roughness:.3,metalness:.08});
-    const yachtDeckMat=new THREE.MeshStandardMaterial({color:0xb7aa96,roughness:.74});
-    const yachtGlassMat=new THREE.MeshPhysicalMaterial({color:0x244c5a,roughness:.16,metalness:.18,clearcoat:.8});
-    const yachtHullGeo=new THREE.CapsuleGeometry(4.1,39,5,12);
-    const yachtCabinGeo=new THREE.BoxGeometry(1,1,1);
-    for(let i=0;i<9;i++){
-        const row=Math.floor(i/3),col=i%3;
-        const x=harbourX+[-74,0,74][col];
-        const z=harbourZ+(row-1)*88;
+    /* Six individually shaped motor yachts moored in open-water berths. */
+    const yachtHullMat=new THREE.MeshStandardMaterial({color:0xf1eee6,roughness:.28,metalness:.08});
+    const yachtDeckMat=new THREE.MeshStandardMaterial({color:0xc8bca9,roughness:.72});
+    const yachtGlassMat=new THREE.MeshPhysicalMaterial({color:0x183b4a,roughness:.15,metalness:.2,clearcoat:.9});
+    const hullShape=new THREE.Shape();
+    hullShape.moveTo(-27,-3.5);
+    hullShape.lineTo(15,-3.5);
+    hullShape.quadraticCurveTo(25,-3.5,30,0);
+    hullShape.quadraticCurveTo(25,3.5,15,3.5);
+    hullShape.lineTo(-27,3.5);
+    hullShape.closePath();
+    const yachtHullGeo=new THREE.ExtrudeGeometry(hullShape,{depth:2.3,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:.35,bevelThickness:.25});
+    yachtHullGeo.rotateX(Math.PI/2);
+    for(let i=0;i<6;i++){
+        const col=i%2,row=Math.floor(i/2);
+        const x=harbourX+(col===0?-42:42);
+        const z=harbourZ-54+row*54;
         const yacht=new THREE.Group();
         const hull=new THREE.Mesh(yachtHullGeo,yachtHullMat);
-        hull.rotation.z=Math.PI/2;
-        hull.scale.set(.55,(52+(i%3)*6)/47.2,.9);
-        hull.position.y=1.05;yacht.add(hull);
-        const deck=new THREE.Mesh(new THREE.BoxGeometry(54,.35,8.4),yachtDeckMat);
-        deck.position.set(0,1.38,0);yacht.add(deck);
-        const cabin=new THREE.Mesh(yachtCabinGeo,yachtGlassMat);
-        cabin.scale.set(17,3.3,6.8);cabin.position.set(-4,3.15,0);yacht.add(cabin);
-        const windscreen=new THREE.Mesh(new THREE.BoxGeometry(5,1.5,6.9),yachtGlassMat);
-        windscreen.position.set(7,3.25,0);yacht.add(windscreen);
-        const bowRail=new THREE.Mesh(new THREE.BoxGeometry(10,.13,.13),yachtHullMat);
-        bowRail.position.set(21,2.1,0);yacht.add(bowRail);
-        const mast=new THREE.Mesh(new THREE.CylinderGeometry(.08,.11,7,7),yachtHullMat);
-        mast.position.set(-18,6.5,0);yacht.add(mast);
-        const sternDeck=new THREE.Mesh(new THREE.BoxGeometry(8,.25,7.4),yachtDeckMat);
-        sternDeck.position.set(-24,1.55,0);yacht.add(sternDeck);
+        hull.position.y=1.15;yacht.add(hull);
+        const deck=new THREE.Mesh(new THREE.BoxGeometry(43,.32,6.4),yachtDeckMat);
+        deck.position.set(-1,1.2,0);yacht.add(deck);
+        const cabin=new THREE.Mesh(new THREE.BoxGeometry(14,3.2,5.2),yachtGlassMat);
+        cabin.position.set(-5,3.0,0);yacht.add(cabin);
+        const windscreen=new THREE.Mesh(new THREE.BoxGeometry(4,1.4,5.3),yachtGlassMat);
+        windscreen.position.set(5,3.1,0);yacht.add(windscreen);
+        const bowRail=new THREE.Mesh(new THREE.TorusGeometry(4,.09,5,18,Math.PI),yachtHullMat);
+        bowRail.rotation.z=Math.PI/2;bowRail.position.set(18,2.2,0);yacht.add(bowRail);
+        const mast=new THREE.Mesh(new THREE.CylinderGeometry(.07,.1,6.5,7),yachtHullMat);
+        mast.position.set(-17,6.1,0);yacht.add(mast);
         yacht.position.set(x,-1.02,z);
-        yacht.rotation.y=(i%2===0?0:Math.PI)+.035;
+        yacht.rotation.y=col===0?0:Math.PI;
         yacht.userData.floatingOnHarbour=true;
-        monacoWorld.add(yacht);
+        if(insideHarbour(x,z,34))monacoWorld.add(yacht);
     }
 
     /* Trackside grandstands, hospitality decks and spectator seating. */
@@ -37454,7 +37486,7 @@ function loadMonacoWorld(){
         for(const side of [-1,1]){
             if(side===PIT_SIDE&&isInPitCorridor(sampleIndex))continue;
             const pos=sample.p.clone().addScaledVector(sample.normal,side*57);
-            if(!clearOfCircuit(pos.x,pos.z,96))continue;
+            if(!clearFootprintOfCircuit(pos.x,pos.z,64,22,28))continue;
             const stand=new THREE.Group();
             const base=new THREE.Mesh(new THREE.BoxGeometry(62,5,18),standMat);
             base.position.y=2.5;stand.add(base);

@@ -121,15 +121,15 @@ const harbourBounds={
   minZ:Math.min(...normalizedSamples.map(p=>p[1])),
   maxZ:Math.max(...normalizedSamples.map(p=>p[1]))
 };
-const harbourX=(harbourBounds.minX+harbourBounds.maxX)/2-106;
-const harbourZ=(harbourBounds.minZ+harbourBounds.maxZ)/2-393;
+const harbourCenterX=(harbourBounds.minX+harbourBounds.maxX)/2+12;
+const harbourCenterZ=(harbourBounds.minZ+harbourBounds.maxZ)/2+183;
 let harbourRoadGap=Infinity;
 for(const [x,z] of normalizedSamples){
-  const dx=Math.max(Math.abs(x-harbourX)-115,0);
-  const dz=Math.max(Math.abs(z-harbourZ)-140,0);
+  const dx=Math.max(Math.abs(x-harbourCenterX)-(160/2+12+12),0);
+  const dz=Math.max(Math.abs(z-harbourCenterZ)-(200/2+12+12),0);
   harbourRoadGap=Math.min(harbourRoadGap,Math.hypot(dx,dz));
 }
-assert.ok(harbourRoadGap>=60, `Monaco harbour footprint must stay at least 60m from the mapped road centreline; got ${harbourRoadGap.toFixed(1)}m`);
+assert.ok(harbourRoadGap>=38, `Full Monaco harbour and quay footprint must stay at least 38m from the mapped road centreline; got ${harbourRoadGap.toFixed(1)}m`);
 
 const normalizedGap=minimumGap*publishedLength/curveLength;
 assert.ok(normalizedGap>=46, `Actual curved Monaco road sections are too close: ${normalizedGap.toFixed(2)}m centreline clearance for a 44m road`);
@@ -191,24 +191,28 @@ assert.ok(speed*Math.cos(outwardAngle)>79.9,"Tangent speed must be preserved dur
 
 for (const required of [
   "monacoMonteCarloCity","Casino de Monte-Carlo","Hotel de Paris",
-  "Mediterranean sea","Port Hercule","harbourWidth=230","yachtHullMat",
+  "Mediterranean sea","Port Hercule","harbourWidth=160","yachtHullMat",
   "palmTrunks","gardenTrees","Trackside grandstands","Street lighting",
   "Monaco hills","facadeWindows","facadeBalconies","monacoGrandPrixTunnel",
-  "tunnelStartIndex=620","tunnelEndIndex=850","tunnelLightMat","new THREE.PointLight","new THREE.CapsuleGeometry","floatingOnHarbour"
+  "tunnelStartIndex=620","tunnelEndIndex=850","tunnelLightMat","new THREE.PointLight","new THREE.ExtrudeGeometry(hullShape","floatingOnHarbour"
 ]) assert.ok(builder.includes(required), `Monaco environment must include ${required}`);
 assert.doesNotMatch(builder,/const edgeMat=new THREE\.MeshStandardMaterial\(\{color:0xf4f3ed/,"Monaco road must not have continuous white edge strips");
-assert.match(builder,/hull\.position\.y=1\.05/,"Yacht hulls must float at the harbour waterline");
+assert.match(builder,/hull\.position\.y=1\.15/,"Yacht hulls must float at the harbour waterline");
 assert.match(builder,/yacht\.position\.set\(x,-1\.02,z\)/,"Yachts must be positioned at the harbour water surface");
 assert.match(builder,/const clearOfCircuit=\(x,z,minDistance=68\)/,"Scenery must be excluded from the racing corridor");
 assert.match(builder,/new THREE\.PlaneGeometry\(5200,5200\)/,"Monaco must have a large Mediterranean sea backdrop");
 assert.match(builder,/insideHarbour\(x,z,22\)/,"City buildings must not cover the marina basin");
-assert.match(builder,/for\(let i=0;i<9;i\+\+\)/,"Harbour must contain nine yachts in clear berths");
-assert.match(builder,/const harbourX=centerX-106/,"Marina must use the verified clear waterfront position");
-assert.match(builder,/const harbourZ=centerZ-393/,"Marina must be moved away from the racing surface");
-assert.match(builder,/const harbourDepth=280/,"Marina must use the compact clear basin footprint");
-assert.match(builder,/new THREE\.BoxGeometry\(3\.8,1\.15,harbourDepth\*\.78\)/,"Marina finger docks must remain inside the basin");
-assert.doesNotMatch(builder,/harbourX-185|harbourDepth\*\.58/,"Remove the old misplaced piers that extended outside the basin");
-assert.match(builder,/clearOfCircuit\(pos\.x,pos\.z,96\)/,"Grandstands must stay well clear of the road");
+assert.match(builder,/for\(let i=0;i<6;i\+\+\)/,"Harbour must contain six individually modelled yachts");
+assert.match(builder,/const harbourX=centerX\+12/,"Marina must be positioned beside the real mapped harbour-side district");
+assert.match(builder,/const harbourZ=centerZ\+183/,"Marina must be positioned beside the real mapped harbour-side district");
+assert.match(builder,/const harbourDepth=200/,"Marina must use the compact clear basin footprint");
+assert.match(builder,/new THREE\.ShapeGeometry\(harbourShape,32\)/,"Marina water must follow an irregular curved shoreline");
+assert.match(builder,/new THREE\.BoxGeometry\(5,1\.1,108\)/,"Marina must use one central finger pier, not a grid of docks");
+assert.match(builder,/clearFootprintOfCircuit\(harbourX,harbourZ,harbourWidth\+24,harbourDepth\+24,12\)/,"Entire marina footprint must be verified against the mapped road");
+assert.match(builder,/const clearFootprintOfCircuit=\(x,z,width,depth,margin=14\)/,"Scenery collision clearance must test full object footprints");
+assert.match(builder,/clearFootprintOfCircuit\(x,z,w,d,landmark\?24:18\)/,"Buildings must be rejected if any part overlaps the road corridor");
+assert.doesNotMatch(builder,/harbourX=centerX-106|harbourZ=centerZ-393|harbourDepth\*\.78/,"Remove the previous misplaced rectangular harbour and dock grid");
+assert.match(builder,/clearFootprintOfCircuit\(pos\.x,pos\.z,64,22,28\)/,"Grandstands must stay fully clear of the road");
 assert.match(builder,/for\(let i=0;i<150;i\+\+\)/,"Monaco must include landscaped greenery");
 assert.match(builder,/for\(const sampleIndex of \[115,330,585,840,1110,1370\]\)/,"Grandstands must be placed at multiple circuit locations");
 assert.match(builder,/new THREE\.ExtrudeGeometry\(tunnelShape/,"Monaco tunnel must use a continuous arched shell");
