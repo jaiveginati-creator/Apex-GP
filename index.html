@@ -47835,6 +47835,44 @@ function applyTrackElevation(){
 }
 
 
+let monacoTunnelFlashArmed=true;
+let monacoTunnelFlashLastIndex=-1;
+let monacoTunnelFlashOverlay=null;
+
+/* A brief, non-interactive exposure flash at the tunnel mouth. The
+   tunnel itself remains lit only by its recessed artificial fixtures. */
+function updateMonacoTunnelEntryFlash(){
+    if(activeTrackId!=="monaco"){
+        monacoTunnelFlashArmed=true;
+        monacoTunnelFlashLastIndex=-1;
+        return;
+    }
+    const info=getTrackInfo(player.position);
+    if(!info)return;
+    const index=info.index;
+    if(index>870||index<600)monacoTunnelFlashArmed=true;
+    if(
+        monacoTunnelFlashArmed&&
+        index>=620&&index<630&&
+        (monacoTunnelFlashLastIndex<620||monacoTunnelFlashLastIndex>850)
+    ){
+        if(!monacoTunnelFlashOverlay){
+            monacoTunnelFlashOverlay=document.createElement("div");
+            monacoTunnelFlashOverlay.setAttribute("aria-hidden","true");
+            monacoTunnelFlashOverlay.style.cssText=
+                "position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:2147483647;";
+            document.body.appendChild(monacoTunnelFlashOverlay);
+        }
+        monacoTunnelFlashOverlay.animate(
+            [{opacity:0},{opacity:.94,offset:.08},{opacity:0}],
+            {duration:520,easing:"ease-out"}
+        );
+        monacoTunnelFlashArmed=false;
+    }
+    monacoTunnelFlashLastIndex=index;
+}
+
+
 function animate(){
 
     requestAnimationFrame(
@@ -47900,6 +47938,8 @@ function animate(){
         updatePitSystem(dt);
 
         updatePhysics(dt);
+
+        updateMonacoTunnelEntryFlash();
 
         /* 1b. online netplay send (no-op unless joined) */
         if(typeof NetGame!=="undefined"){
