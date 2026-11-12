@@ -210,7 +210,7 @@ assert.match(builder,/const harbourWidth=230/,"Marina must have a full-scale bas
 assert.match(builder,/const harbourDepth=250/,"Marina must have a full-scale basin depth");
 assert.match(builder,/harbour\.geometry\.scale\(1\.4,1\.25,1\)/,"Marina water must be large enough to read clearly from the circuit");
 assert.match(builder,/new THREE\.ShapeGeometry\(harbourShape,32\)/,"Marina water must follow an irregular curved shoreline");
-assert.match(builder,/new THREE\.BoxGeometry\(5,1\.1,108\)/,"Marina must use one central finger pier, not a grid of docks");
+assert.match(builder,/new THREE\.BoxGeometry\(6,1\.1,136\)/,"Marina must use one central finger pier, not a grid of docks");
 assert.match(builder,/clearFootprintOfCircuit\(harbourX,harbourZ,harbourWidth\+24,harbourDepth\+24,12\)/,"Entire marina footprint must be verified against the mapped road");
 assert.match(builder,/const clearFootprintOfCircuit=\(x,z,width,depth,margin=14\)/,"Scenery collision clearance must test full object footprints");
 assert.match(builder,/clearFootprintOfCircuit\(x,z,w,d,landmark\?24:18\)/,"Buildings must be rejected if any part overlaps the road corridor");
