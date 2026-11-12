@@ -222,14 +222,12 @@ assert.match(builder,/for\(const sampleIndex of \[115,330,585,840,1110,1370\]\)/
 assert.match(builder,/function tunnelStationFrame\(index\)/,"Tunnel cross-sections must use a stable horizontal frame instead of twisting Frenet frames");
 assert.match(builder,/makeTunnelSurface\(tunnelOuterProfile,tunnelConcrete/,"Tunnel roof and outer side walls must be continuous indexed geometry");
 assert.match(builder,/makeTunnelSurface\(tunnelInnerProfile,tunnelInteriorMat/,"Tunnel must have a separate continuous inner roof and side-wall liner");
+assert.match(builder,/mesh\.castShadow=true/,"Continuous tunnel surfaces must cast shadows");
 assert.match(builder,/tunnelStationFrame\(station\)/,"Every tunnel cross-section must use its own stable road-aligned frame");
 assert.match(builder,/monacoTunnelPortalRims/,"Both tunnel mouths must have closed concrete thickness rims");
 assert.doesNotMatch(builder,/ExtrudeGeometry\(tunnelShape|extrudePath:tunnelPath/,"Remove the twisting swept extrusion that caused tunnel gaps");
 assert.match(builder,/tunnelStartIndex=620,tunnelEndIndex=850/,"Tunnel must cover the mapped Portier-to-Nouvelle-Chicane section");
 assert.match(builder,/color:0x252a2d,roughness:.98,side:THREE\.DoubleSide/,"Tunnel concrete must remain dark inside");
-assert.match(builder,/tunnelGroup\.add\(tunnelShell\)/,"Continuous tunnel shell must be parented to the Monaco world");
-assert.match(builder,/const tunnelLiner=new THREE\.Mesh\(/,"Tunnel must have a light-blocking inner liner");
-assert.match(builder,/tunnelLiner\.castShadow=true/,"Inner tunnel liner must cast a continuous shadow");
 assert.match(builder,/new THREE\.PointLight\(0xffc982,1\.65,32,2\)/,"Tunnel must use subdued artificial point lighting");
 assert.match(builder,/tunnelLightMat/,"Tunnel must include overhead lighting");
 assert.match(builder,/new THREE\.PlaneGeometry\(groundW,groundD\)/,"Only a flat neutral base should remain behind the circuit");
