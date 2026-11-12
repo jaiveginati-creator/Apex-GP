@@ -122,7 +122,7 @@ const harbourBounds={
   maxZ:Math.max(...normalizedSamples.map(p=>p[1]))
 };
 const harbourCenterX=(harbourBounds.minX+harbourBounds.maxX)/2+12;
-const harbourCenterZ=(harbourBounds.minZ+harbourBounds.maxZ)/2+153;
+const harbourCenterZ=(harbourBounds.minZ+harbourBounds.maxZ)/2+160;
 let harbourRoadGap=Infinity;
 for(const [x,z] of normalizedSamples){
   const dx=Math.max(Math.abs(x-harbourCenterX)-(190/2+12+12),0);
