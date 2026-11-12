@@ -37154,10 +37154,10 @@ function loadMonacoWorld(){
         }
         return true;
     };
-    const harbourX=centerX-25;
-    const harbourZ=centerZ+212;
-    const harbourWidth=220;
-    const harbourDepth=260;
+    const harbourX=centerX+12;
+    const harbourZ=centerZ+183;
+    const harbourWidth=160;
+    const harbourDepth=200;
     const insideHarbour=(x,z,margin=0)=>
         Math.abs(x-harbourX)<harbourWidth/2+margin&&
         Math.abs(z-harbourZ)<harbourDepth/2+margin;
@@ -37169,13 +37169,13 @@ function loadMonacoWorld(){
         throw new Error("Monaco Port Hercule footprint intersects the racing corridor");
     }
     const harbourShape=new THREE.Shape();
-    harbourShape.moveTo(-88,-126);
-    harbourShape.bezierCurveTo(-116,-102,-122,-58,-112,-18);
-    harbourShape.bezierCurveTo(-104,30,-80,92,-34,119);
-    harbourShape.bezierCurveTo(8,144,66,134,96,100);
-    harbourShape.bezierCurveTo(123,69,118,26,104,-18);
-    harbourShape.bezierCurveTo(91,-66,52,-116,4,-132);
-    harbourShape.bezierCurveTo(-32,-145,-67,-143,-88,-126);
+    harbourShape.moveTo(-58,-91);
+    harbourShape.bezierCurveTo(-76,-74,-79,-42,-73,-13);
+    harbourShape.bezierCurveTo(-68,22,-51,66,-22,86);
+    harbourShape.bezierCurveTo(7,104,45,96,64,71);
+    harbourShape.bezierCurveTo(81,49,77,18,68,-13);
+    harbourShape.bezierCurveTo(58,-48,34,-82,2,-95);
+    harbourShape.bezierCurveTo(-22,-104,-44,-102,-58,-91);
     harbourShape.closePath();
     const harbour=new THREE.Mesh(
         new THREE.ShapeGeometry(harbourShape,32),
@@ -37194,42 +37194,42 @@ function loadMonacoWorld(){
     const dockMat=new THREE.MeshStandardMaterial({color:0x796d5d,roughness:.9});
     /* A curved outer breakwater and a stone promenade follow the inlet edge. */
     const breakwaterPoints=[
-        [-106,-92],[-119,-48],[-112,5],[-93,59],[-62,104],
-        [-20,132],[31,139],[78,119],[111,82]
+        [-72,-66],[-79,-35],[-74,4],[-61,39],[-40,68],
+        [-13,88],[18,94],[49,79],[71,52]
     ].map(([x,z])=>new THREE.Vector3(harbourX+x,-.02,harbourZ+z));
     const breakwaterCurve=new THREE.CatmullRomCurve3(breakwaterPoints);
-    const breakwaterSamples=breakwaterCurve.getPoints(34);
+    const breakwaterSamples=breakwaterCurve.getPoints(30);
     for(let i=0;i<breakwaterSamples.length-1;i++){
         const a=breakwaterSamples[i],b=breakwaterSamples[i+1];
         const dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);
-        const wall=new THREE.Mesh(
-            new THREE.BoxGeometry(length+1,2.1,6.5),quayMat
-        );
+        const wall=new THREE.Mesh(new THREE.BoxGeometry(length+1,2.1,6.5),quayMat);
         wall.position.set((a.x+b.x)/2,.12,(a.z+b.z)/2);
         wall.rotation.y=Math.atan2(dx,dz);
         wall.receiveShadow=true;
         if(clearFootprintOfCircuit(wall.position.x,wall.position.z,length+8,14,10))monacoWorld.add(wall);
     }
-    const promenade=new THREE.Mesh(new THREE.BoxGeometry(150,.65,12),quayMat);
-    promenade.position.set(harbourX+4,.05,harbourZ-132);
+    const promenade=new THREE.Mesh(new THREE.BoxGeometry(100,.65,10),quayMat);
+    promenade.position.set(harbourX+2,.05,harbourZ-96);
     promenade.rotation.y=-.12;
     promenade.receiveShadow=true;
-    if(clearFootprintOfCircuit(promenade.position.x,promenade.position.z,155,18,10))monacoWorld.add(promenade);
+    if(clearFootprintOfCircuit(promenade.position.x,promenade.position.z,106,16,10))monacoWorld.add(promenade);
 
     /* One central finger pier with short side berths; leave open water around
        every yacht instead of laying a grid of docks across the basin. */
-    const centralPier=new THREE.Mesh(new THREE.BoxGeometry(5,1.1,142),dockMat);
-    centralPier.position.set(harbourX+8,-.48,harbourZ+3);
+    const centralPier=new THREE.Mesh(new THREE.BoxGeometry(5,1.1,108),dockMat);
+    centralPier.position.set(harbourX+8,-.48,harbourZ+1);
     monacoWorld.add(centralPier);
-    for(let i=0;i<4;i++){
-        const finger=new THREE.Mesh(new THREE.BoxGeometry(28,1,3.8),dockMat);
-        finger.position.set(harbourX+(-38+i*30),-.5,harbourZ+(-66+i%2*132));
-        monacoWorld.add(finger);
+    for(const xOffset of [-24,24]){
+        for(const zOffset of [-42,42]){
+            const finger=new THREE.Mesh(new THREE.BoxGeometry(42,1,3.8),dockMat);
+            finger.position.set(harbourX+xOffset,-.5,harbourZ+zOffset);
+            monacoWorld.add(finger);
+        }
     }
     const bollardMat=new THREE.MeshStandardMaterial({color:0x343b3c,metalness:.72,roughness:.4});
     for(let i=0;i<12;i++){
         const bollard=new THREE.Mesh(new THREE.CylinderGeometry(.28,.36,.85,8),bollardMat);
-        bollard.position.set(harbourX-77+i*14,-.02,harbourZ-130);
+        bollard.position.set(harbourX-57+i*10.5,-.02,harbourZ-96);
         monacoWorld.add(bollard);
     }
     const cityMaterials=[
@@ -37457,8 +37457,8 @@ function loadMonacoWorld(){
     yachtHullGeo.rotateX(Math.PI/2);
     for(let i=0;i<6;i++){
         const col=i%2,row=Math.floor(i/2);
-        const x=harbourX+(col===0?-48:48);
-        const z=harbourZ-78+row*76;
+        const x=harbourX+(col===0?-42:42);
+        const z=harbourZ-54+row*54;
         const yacht=new THREE.Group();
         const hull=new THREE.Mesh(yachtHullGeo,yachtHullMat);
         hull.position.y=1.15;yacht.add(hull);
