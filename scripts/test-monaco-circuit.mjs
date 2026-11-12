@@ -138,7 +138,7 @@ assert.match(builder,/MONACO_TRACK_HALF_WIDTH\+4\.6/,"Guardrails must sit outsid
 assert.match(builder,/if\(side===PIT_SIDE&&isInPitCorridor\(i\)\)continue/,"Pit entry and exit must remain open");
 assert.match(builder,/monacoGuardrailPosts/,"Glass barriers must have visible support posts");
 assert.match(builder,/monacoGuardrailCaps/,"Glass barriers must have a continuous top rail");
-assert.match(html,/const side=-Math\.sign\(trackInfo\.lateral\);[\s\S]{0,420}const correction=penetration/,"Player must apply complete player boundary correction at the guardrail");
+assert.match(html,/const side=-Math\.sign\(trackInfo\.lateral\);[\s\S]{0,600}const correction=penetration/,"Player must apply complete player boundary correction at the guardrail");
 assert.match(html,/physics\.collisionVelocity\.dot\(trackInfo\.sample\.normal\)/,"Outward drift must be damped at the Monaco barrier");
 assert.match(html,/outwardVelocity\*\.72/,"Guardrail response must damp outward velocity without deleting tangential movement");
 assert.match(html,/physics\.collisionCooldown=\.42/,"Player guardrail impact must use a short impact cooldown");

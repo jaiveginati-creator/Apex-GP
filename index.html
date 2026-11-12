@@ -19107,11 +19107,8 @@ function updatePhysics(dt){
         const side=-Math.sign(trackInfo.lateral);
         const penetration=lateralDistance-barrierLimit;
 
-        /* Soft spring response: ease the car back inside instead
-           of snapping it to the boundary. The correction is capped
-           per frame, so contact feels like a scrape/deflection. */
-        /* Resolve the complete overlap this frame. A capped correction lets a fast car
-           tunnel farther through the rail than the collision response can recover. */
+        /* Enforce the legal boundary exactly; smooth tangent steering below
+           keeps the car sliding instead of freezing at the rail. */
         const correction=penetration;
         player.position.addScaledVector(
             trackInfo.sample.normal,
