@@ -194,7 +194,7 @@ for (const required of [
   "Mediterranean sea","Port Hercule","harbourWidth=160","yachtHullMat",
   "palmTrunks","gardenTrees","Trackside grandstands","Street lighting",
   "Monaco hills","facadeWindows","facadeBalconies","monacoGrandPrixTunnel",
-  "tunnelStartIndex=620","tunnelEndIndex=850","tunnelLightMat","new THREE.PointLight","new THREE.CapsuleGeometry","floatingOnHarbour"
+  "tunnelStartIndex=620","tunnelEndIndex=850","tunnelLightMat","new THREE.PointLight","new THREE.ExtrudeGeometry(hullShape","floatingOnHarbour"
 ]) assert.ok(builder.includes(required), `Monaco environment must include ${required}`);
 assert.doesNotMatch(builder,/const edgeMat=new THREE\.MeshStandardMaterial\(\{color:0xf4f3ed/,"Monaco road must not have continuous white edge strips");
 assert.match(builder,/hull\.position\.y=1\.15/,"Yacht hulls must float at the harbour waterline");
