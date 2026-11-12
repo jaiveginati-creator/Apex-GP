@@ -176,8 +176,11 @@ for (const required of [
   "Mediterranean sea","Port Hercule","harbourWidth=310","yachtHullMat",
   "palmTrunks","gardenTrees","Trackside grandstands","Street lighting",
   "Monaco hills","facadeWindows","facadeBalconies","monacoGrandPrixTunnel",
-  "tunnelStartIndex=151","tunnelEndIndex=205","tunnelLightMat"
+  "tunnelStartIndex=620","tunnelEndIndex=850","tunnelLightMat","new THREE.PointLight","new THREE.CapsuleGeometry","floatingOnHarbour"
 ]) assert.ok(builder.includes(required), `Monaco environment must include ${required}`);
+assert.doesNotMatch(builder,/const edgeMat=new THREE\.MeshStandardMaterial\(\{color:0xf4f3ed/,"Monaco road must not have continuous white edge strips");
+assert.match(builder,/hull\.position\.y=1\.1/,"Yacht hulls must float at the harbour waterline");
+assert.match(builder,/yacht\.position\.set\(x,-1\.02,z\)/,"Yachts must be positioned at the harbour water surface");
 assert.match(builder,/const clearOfCircuit=\(x,z,minDistance=68\)/,"Scenery must be excluded from the racing corridor");
 assert.match(builder,/new THREE\.PlaneGeometry\(5200,5200\)/,"Monaco must have a large Mediterranean sea backdrop");
 assert.match(builder,/insideHarbour\(x,z,22\)/,"City buildings must not cover the marina basin");
@@ -185,7 +188,9 @@ assert.match(builder,/for\(let i=0;i<13;i\+\+\)/,"Harbour must contain a fleet o
 assert.match(builder,/for\(let i=0;i<150;i\+\+\)/,"Monaco must include landscaped greenery");
 assert.match(builder,/for\(const sampleIndex of \[115,330,585,840,1110,1370\]\)/,"Grandstands must be placed at multiple circuit locations");
 assert.match(builder,/new THREE\.ExtrudeGeometry\(tunnelShape/,"Monaco tunnel must use a continuous arched shell");
-assert.match(builder,/tunnelStartIndex=151,tunnelEndIndex=205/,"Tunnel must occupy the mapped tunnel section");
+assert.match(builder,/tunnelStartIndex=620,tunnelEndIndex=850/,"Tunnel must cover the mapped Portier-to-Nouvelle-Chicane section and be extended");
+assert.match(builder,/new THREE\.Mesh\(tunnelGeometry,\[tunnelConcrete,tunnelInterior\]\)/,"Tunnel inner surfaces must use a dark unlit material");
+assert.match(builder,/new THREE\.PointLight\(0xffdca0,4\.2,54,2\)/,"Tunnel must use real artificial point lighting");
 assert.match(builder,/tunnelGroup\.add\(segment\)/,"Tunnel segments must be parented to the Monaco world");
 assert.match(builder,/tunnelLightMat/,"Tunnel must include overhead lighting");
 assert.match(builder,/new THREE\.PlaneGeometry\(groundW,groundD\)/,"Only a flat neutral base should remain behind the circuit");
