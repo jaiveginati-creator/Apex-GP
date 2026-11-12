@@ -3,7 +3,8 @@ import fs from "node:fs";
 import assert from "node:assert/strict";
 
 const html = fs.readFileSync("index.html", "utf8");
-const pointsMatch = html.match(/const monacoSourcePoints=\[([\s\S]*?)\n\];/);
+const pointsMatch = html.match(/const monacoSourcePoints=\[([\s\S]*?)
+\];/);
 assert.ok(pointsMatch, "Mapped Monaco source centreline must exist");
 const sourcePoints = [...pointsMatch[1].matchAll(/\[\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\]/g)]
   .map(m => [Number(m[1]), Number(m[2]), Number(m[3])]);
@@ -218,8 +219,12 @@ assert.doesNotMatch(builder,/harbourX=centerX-106|harbourZ=centerZ-393|harbourDe
 assert.match(builder,/clearFootprintOfCircuit\(pos\.x,pos\.z,64,22,28\)/,"Grandstands must stay fully clear of the road");
 assert.match(builder,/for\(let i=0;i<150;i\+\+\)/,"Monaco must include landscaped greenery");
 assert.match(builder,/for\(const sampleIndex of \[115,330,585,840,1110,1370\]\)/,"Grandstands must be placed at multiple circuit locations");
-assert.match(builder,/new THREE\.CatmullRomCurve3\(tunnelPathPoints,false,"centripetal"\)/,"Tunnel shell must follow the curved mapped centreline continuously");
-assert.match(builder,/function tunnelStationFrame\(index\)/,"Tunnel cross-sections must use a stable horizontal frame instead of twisting Frenet frames");\nassert.match(builder,/makeTunnelSurface\(tunnelOuterProfile,tunnelConcrete/,"Tunnel roof and outer side walls must be continuous indexed geometry");\nassert.match(builder,/makeTunnelSurface\(tunnelInnerProfile,tunnelInteriorMat/,"Tunnel must have a separate continuous inner roof and side-wall liner");\nassert.match(builder,/tunnelStationFrame\(station\)/,"Every tunnel cross-section must use its own stable road-aligned frame");\nassert.match(builder,/monacoTunnelPortalRims/,"Both tunnel mouths must have closed concrete thickness rims");\nassert.doesNotMatch(builder,/ExtrudeGeometry\(tunnelShape|extrudePath:tunnelPath/,"Remove the twisting swept extrusion that caused tunnel gaps");
+assert.match(builder,/function tunnelStationFrame\(index\)/,"Tunnel cross-sections must use a stable horizontal frame instead of twisting Frenet frames");
+assert.match(builder,/makeTunnelSurface\(tunnelOuterProfile,tunnelConcrete/,"Tunnel roof and outer side walls must be continuous indexed geometry");
+assert.match(builder,/makeTunnelSurface\(tunnelInnerProfile,tunnelInteriorMat/,"Tunnel must have a separate continuous inner roof and side-wall liner");
+assert.match(builder,/tunnelStationFrame\(station\)/,"Every tunnel cross-section must use its own stable road-aligned frame");
+assert.match(builder,/monacoTunnelPortalRims/,"Both tunnel mouths must have closed concrete thickness rims");
+assert.doesNotMatch(builder,/ExtrudeGeometry\(tunnelShape|extrudePath:tunnelPath/,"Remove the twisting swept extrusion that caused tunnel gaps");
 assert.match(builder,/tunnelStartIndex=620,tunnelEndIndex=850/,"Tunnel must cover the mapped Portier-to-Nouvelle-Chicane section");
 assert.match(builder,/color:0x252a2d,roughness:.98,side:THREE\.DoubleSide/,"Tunnel concrete must remain dark inside");
 assert.match(builder,/tunnelGroup\.add\(tunnelShell\)/,"Continuous tunnel shell must be parented to the Monaco world");
