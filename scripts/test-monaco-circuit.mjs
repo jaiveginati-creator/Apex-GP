@@ -173,13 +173,20 @@ assert.ok(speed*Math.cos(outwardAngle)>79.9,"Tangent speed must be preserved dur
 
 for (const required of [
   "monacoMonteCarloCity","Casino de Monte-Carlo","Hotel de Paris",
-  "Mediterranean sea","harbour basin","yachtHullMat","palmTrunks",
-  "gardenTrees","Trackside grandstands","Street lighting","Monaco hills"
+  "Mediterranean sea","Port Hercule","harbourWidth=310","yachtHullMat",
+  "palmTrunks","gardenTrees","Trackside grandstands","Street lighting",
+  "Monaco hills","facadeWindows","facadeBalconies","monacoGrandPrixTunnel",
+  "tunnelStartIndex=151","tunnelEndIndex=205","tunnelLightMat"
 ]) assert.ok(builder.includes(required), `Monaco environment must include ${required}`);
 assert.match(builder,/const clearOfCircuit=\(x,z,minDistance=68\)/,"Scenery must be excluded from the racing corridor");
 assert.match(builder,/new THREE\.PlaneGeometry\(5200,5200\)/,"Monaco must have a large Mediterranean sea backdrop");
-assert.match(builder,/for\(let i=0;i<11;i\+\+\)/,"Harbour must contain yachts");
+assert.match(builder,/insideHarbour\(x,z,22\)/,"City buildings must not cover the marina basin");
+assert.match(builder,/for\(let i=0;i<13;i\+\+\)/,"Harbour must contain a fleet of yachts");
 assert.match(builder,/for\(let i=0;i<150;i\+\+\)/,"Monaco must include landscaped greenery");
 assert.match(builder,/for\(const sampleIndex of \[115,330,585,840,1110,1370\]\)/,"Grandstands must be placed at multiple circuit locations");
+assert.match(builder,/new THREE\.ExtrudeGeometry\(tunnelShape/,"Monaco tunnel must use a continuous arched shell");
+assert.match(builder,/tunnelStartIndex=151,tunnelEndIndex=205/,"Tunnel must occupy the mapped tunnel section");
+assert.match(builder,/tunnelGroup\.add\(segment\)/,"Tunnel segments must be parented to the Monaco world");
+assert.match(builder,/tunnelLightMat/,"Tunnel must include overhead lighting");
 assert.match(builder,/new THREE\.PlaneGeometry\(groundW,groundD\)/,"Only a flat neutral base should remain behind the circuit");
 console.log(`Monaco checks passed: ${sourcePoints.length} mapped points, ${sourceLength.toFixed(0)}m source trace, 3.50 km lap, 44m road width, ${normalizedGap.toFixed(2)}m actual-curve clearance, pit lane and kerbs.`);
