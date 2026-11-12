@@ -37346,72 +37346,112 @@ function loadMonacoWorld(){
     facadeWindows.count=facadeWindowCount;facadeBalconies.count=facadeBalconyCount;
     facadeWindows.instanceMatrix.needsUpdate=true;facadeBalconies.instanceMatrix.needsUpdate=true;
 
-    /* The famous Monaco tunnel: a continuous arched concrete shell
-       following the mapped road between Portier and the Nouvelle Chicane.
-       The road, kerbs and glass collision boundaries remain untouched. */
-    const tunnelShape=new THREE.Shape();
-    tunnelShape.moveTo(-35,0);
-    tunnelShape.lineTo(-35,18);
-    tunnelShape.quadraticCurveTo(-34,31,0,32);
-    tunnelShape.quadraticCurveTo(34,31,35,18);
-    tunnelShape.lineTo(35,0);
-    tunnelShape.lineTo(29,0);
-    tunnelShape.lineTo(29,15);
-    tunnelShape.quadraticCurveTo(28,25,0,26);
-    tunnelShape.quadraticCurveTo(-28,25,-29,15);
-    tunnelShape.lineTo(-29,0);
-    tunnelShape.closePath();
+    /* Monaco tunnel: build the roof and side walls from stable horizontal
+       cross-sections. ExtrudeGeometry's Frenet frames can rotate abruptly on
+       this tight S-bend, opening visible holes in the swept arch. */
     const tunnelGroup=new THREE.Group();
     tunnelGroup.name="monacoGrandPrixTunnel";
     monacoWorld.add(tunnelGroup);
-    /* Build one continuous swept arch along the actual centreline. This
-       removes the visible gaps and overlapping end-caps from short boxes. */
     const tunnelStartIndex=620,tunnelEndIndex=850;
+    const tunnelOuterProfile=[[-35,0],[-35,18]];
+    const tunnelInnerProfile=[[-29,0],[-29,15]];
+    for(let step=0;step<=32;step++){
+        const angle=Math.PI-step/32*Math.PI;
+        tunnelOuterProfile.push([35*Math.cos(angle),18+14*Math.sin(angle)]);
+        tunnelInnerProfile.push([29*Math.cos(angle),15+10*Math.sin(angle)]);
+    }
+    tunnelOuterProfile.push([35,0]);
+    tunnelInnerProfile.push([29,0]);
     const tunnelPathPoints=[];
     for(let i=tunnelStartIndex;i<=tunnelEndIndex;i++){
         const sample=getTrackSample(i);
         tunnelPathPoints.push(new THREE.Vector3(sample.p.x,sample.p.y-1.25,sample.p.z));
     }
-    const tunnelPath=new THREE.CatmullRomCurve3(tunnelPathPoints,false,"centripetal");
-    const tunnelGeometry=new THREE.ExtrudeGeometry(tunnelShape,{
-        steps:tunnelPathPoints.length*2,bevelEnabled:false,curveSegments:16,
-        extrudePath:tunnelPath
-    });
-    tunnelGeometry.computeVertexNormals();
-    /* The shell itself is dark concrete; the low-output fixtures are the
-       only light sources inside the tunnel. */
+    /* The local right vector is calculated from the horizontal road tangent
+       at every station. It never depends on a Frenet-frame roll or twist. */
+    function tunnelStationFrame(index){
+        const before=tunnelPathPoints[Math.max(0,index-1)];
+        const after=tunnelPathPoints[Math.min(tunnelPathPoints.length-1,index+1)];
+        const tangent=after.clone().sub(before);
+        tangent.y=0;
+        if(tangent.lengthSq()<1e-8)tangent.set(0,0,1);
+        tangent.normalize();
+        return new THREE.Vector3(tangent.z,0,-tangent.x);
+    }
+    function makeTunnelSurface(profile,material,name){
+        const positions=[];
+        const indices=[];
+        const profileCount=profile.length;
+        for(let station=0;station<tunnelPathPoints.length;station++){
+            const center=tunnelPathPoints[station];
+            const right=tunnelStationFrame(station);
+            for(const [lateral,height] of profile){
+                positions.push(
+                    center.x+right.x*lateral,
+                    center.y+height,
+                    center.z+right.z*lateral
+                );
+            }
+        }
+        for(let station=0;station<tunnelPathPoints.length-1;station++){
+            for(let p=0;p<profileCount-1;p++){
+                const a=station*profileCount+p;
+                const b=a+profileCount;
+                indices.push(a,b,a+1,b,b+1,a+1);
+            }
+        }
+        const geometry=new THREE.BufferGeometry();
+        geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+        const mesh=new THREE.Mesh(geometry,material);
+        mesh.name=name;
+        mesh.castShadow=true;
+        mesh.receiveShadow=true;
+        tunnelGroup.add(mesh);
+        return mesh;
+    }
     const tunnelConcrete=new THREE.MeshStandardMaterial({
         color:0x252a2d,roughness:.98,side:THREE.DoubleSide
     });
-    const tunnelShell=new THREE.Mesh(tunnelGeometry,tunnelConcrete);
-    tunnelShell.castShadow=true;tunnelShell.receiveShadow=true;
-    tunnelGroup.add(tunnelShell);
-    /* A dark, inward-facing liner closes light leaks through the swept arch.
-       It also casts a second, continuous shadow onto the racing surface. */
-    const tunnelLiner=new THREE.Mesh(
-        tunnelGeometry,
-        new THREE.MeshBasicMaterial({
-            color:0x101417,side:THREE.BackSide,
-            depthWrite:true,polygonOffset:true,polygonOffsetFactor:-1
-        })
-    );
-    tunnelLiner.castShadow=true;
-    tunnelLiner.receiveShadow=false;
-    tunnelGroup.add(tunnelLiner);
-    /* Hollow stone portal collars keep both mouths completely open. */
-    const portalGeo=new THREE.ExtrudeGeometry(tunnelShape,{depth:4,bevelEnabled:false,curveSegments:16});
-    const portalMat=new THREE.MeshStandardMaterial({color:0x777b7b,roughness:.96});
-    for(const index of [tunnelStartIndex,tunnelEndIndex]){
-        const sample=getTrackSample(index);
-        const portal=new THREE.Mesh(portalGeo,portalMat);
-        portal.position.set(sample.p.x,sample.p.y-1.25,sample.p.z);
-        portal.rotation.y=getTrackTangentAngle(sample);
-        portal.castShadow=true;portal.receiveShadow=true;
-        tunnelGroup.add(portal);
+    const tunnelInteriorMat=new THREE.MeshStandardMaterial({
+        color:0x101417,roughness:1,side:THREE.DoubleSide
+    });
+    const tunnelShell=makeTunnelSurface(tunnelOuterProfile,tunnelConcrete,"monacoTunnelOuterShell");
+    const tunnelLiner=makeTunnelSurface(tunnelInnerProfile,tunnelInteriorMat,"monacoTunnelInnerLiner");
+    /* Close only the concrete thickness at the two portal rims. The roadway
+       and both tunnel mouths remain completely open. */
+    const portalPositions=[];
+    const portalIndices=[];
+    const profileCount=tunnelOuterProfile.length;
+    for(const station of [0,tunnelPathPoints.length-1]){
+        const center=tunnelPathPoints[station];
+        const right=tunnelStationFrame(station);
+        const base=portalPositions.length/3;
+        for(let p=0;p<profileCount;p++){
+            for(const profile of [tunnelOuterProfile,tunnelInnerProfile]){
+                const [lateral,height]=profile[p];
+                portalPositions.push(center.x+right.x*lateral,center.y+height,center.z+right.z*lateral);
+            }
+        }
+        for(let p=0;p<profileCount-1;p++){
+            const a=base+p*2;
+            portalIndices.push(a,a+2,a+1,a+1,a+2,a+3);
+        }
     }
-    /* The interior is deliberately unlit by scenery or daylight meshes.
-       Real point lights and recessed fixtures provide the only tunnel light. */
-    const tunnelLightMat=new THREE.MeshStandardMaterial({color:0x77664c,emissive:0x805321,emissiveIntensity:.48});
+    const portalGeometry=new THREE.BufferGeometry();
+    portalGeometry.setAttribute("position",new THREE.Float32BufferAttribute(portalPositions,3));
+    portalGeometry.setIndex(portalIndices);
+    portalGeometry.computeVertexNormals();
+    const portalRims=new THREE.Mesh(portalGeometry,tunnelConcrete);
+    portalRims.name="monacoTunnelPortalRims";
+    portalRims.castShadow=true;
+    tunnelGroup.add(portalRims);
+    /* Recessed fixtures and low-output point lights are the only illumination
+       inside the covered section. */
+    const tunnelLightMat=new THREE.MeshStandardMaterial({
+        color:0x77664c,emissive:0x805321,emissiveIntensity:.48
+    });
     for(let i=tunnelStartIndex+6;i<tunnelEndIndex;i+=8){
         const sample=getTrackSample(i);
         const light=new THREE.Mesh(new THREE.BoxGeometry(3.2,.38,1.5),tunnelLightMat);
