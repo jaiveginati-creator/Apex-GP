@@ -125,8 +125,8 @@ const harbourCenterX=(harbourBounds.minX+harbourBounds.maxX)/2+12;
 const harbourCenterZ=(harbourBounds.minZ+harbourBounds.maxZ)/2+160;
 let harbourRoadGap=Infinity;
 for(const [x,z] of normalizedSamples){
-  const dx=Math.max(Math.abs(x-harbourCenterX)-(190/2+12+12),0);
-  const dz=Math.max(Math.abs(z-harbourCenterZ)-(210/2+12+12),0);
+  const dx=Math.max(Math.abs(x-harbourCenterX)-(230/2+12+12),0);
+  const dz=Math.max(Math.abs(z-harbourCenterZ)-(250/2+12+12),0);
   harbourRoadGap=Math.min(harbourRoadGap,Math.hypot(dx,dz));
 }
 assert.ok(harbourRoadGap>=38, `Full Monaco harbour and quay footprint must stay at least 38m from the mapped road centreline; got ${harbourRoadGap.toFixed(1)}m`);
