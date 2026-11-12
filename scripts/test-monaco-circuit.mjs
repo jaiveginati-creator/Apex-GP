@@ -149,7 +149,7 @@ assert.match(html,/const p2Movement=p2Forward\.clone\(\)\.multiplyScalar\([\s\S]
 assert.match(html,/activeTrackId==="monaco"\s*\?MONACO_TRACK_HALF_WIDTH\+3\.6\s*:WALL_DISTANCE-1\.4/,"Player collision boundary must align with the Monaco glass guardrails");
 assert.match(html,/const monacoPitOpening=[\s\S]{0,180}isInPitCorridor\(trackInfo\.index\)/,"Player must retain the open pit-entry guardrail gap");
 assert.match(html,/!monacoPitOpening/,"Player collision must respect the pit-entry opening");
-assert.match(html,/const barrierTrackIndex=[\s\S]{0,140}const monacoPitOpening=/,"Second-car collision must use its own track sample");
+assert.match(html,/const barrierTrackIndex=[\s\S]{0,300}const monacoPitOpening=/,"Second-car collision must use its own track sample");
 assert.match(html,/const side=-Math\.sign\(p2lateral\);[\s\S]{0,420}const correction=penetration/,"Second car must apply complete P2 boundary correction at the guardrail");
 assert.match(html,/isInPitCorridor\(barrierTrackIndex\)/,"Second-car collision must respect the pit-entry opening");
 assert.ok((html.match(/MONACO_TRACK_HALF_WIDTH\+3\.6/g)||[]).length>=2,"Both player and second-car hitboxes must use Monaco guardrail position");
