@@ -205,7 +205,7 @@ assert.match(builder,/insideHarbour\(x,z,22\)/,"City buildings must not cover th
 assert.match(builder,/for\(let i=0;i<10;i\+\+\)/,"Harbour must contain ten individually modelled yachts");
 assert.match(builder,/Port Hercule waterfront hotel/,"Harbour must have waterfront buildings framing the marina");
 assert.match(builder,/const harbourX=centerX\+12/,"Marina must be positioned beside the real mapped harbour-side district");
-assert.match(builder,/const harbourZ=centerZ\+153/,"Marina must be moved into the visible mapped harbour-side pocket");
+assert.match(builder,/const harbourZ=centerZ\+160/,"Marina must be moved into the visible mapped harbour-side pocket");
 assert.match(builder,/const harbourWidth=190/,"Marina must have a full-scale basin width");
 assert.match(builder,/const harbourDepth=210/,"Marina must have a full-scale basin depth");
 assert.match(builder,/harbour\.geometry\.scale\(1\.15,1\.05,1\)/,"Marina water must be large enough to read clearly from the circuit");
