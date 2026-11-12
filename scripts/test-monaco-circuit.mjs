@@ -191,7 +191,7 @@ assert.ok(speed*Math.cos(outwardAngle)>79.9,"Tangent speed must be preserved dur
 
 for (const required of [
   "monacoMonteCarloCity","Casino de Monte-Carlo","Hotel de Paris",
-  "Mediterranean sea","Port Hercule","harbourWidth=190","yachtHullMat",
+  "Mediterranean sea","Port Hercule","harbourWidth=230","yachtHullMat",
   "palmTrunks","gardenTrees","Trackside grandstands","Street lighting",
   "Monaco hills","facadeWindows","facadeBalconies","monacoGrandPrixTunnel",
   "tunnelStartIndex=620","tunnelEndIndex=850","tunnelLightMat","new THREE.PointLight","new THREE.ExtrudeGeometry(hullShape","floatingOnHarbour"
@@ -207,8 +207,8 @@ assert.match(builder,/Port Hercule waterfront hotel/,"Harbour must have waterfro
 assert.match(builder,/const harbourX=centerX\+12/,"Marina must be positioned beside the real mapped harbour-side district");
 assert.match(builder,/const harbourZ=centerZ\+160/,"Marina must be moved into the visible mapped harbour-side pocket");
 assert.match(builder,/const harbourWidth=190/,"Marina must have a full-scale basin width");
-assert.match(builder,/const harbourDepth=210/,"Marina must have a full-scale basin depth");
-assert.match(builder,/harbour\.geometry\.scale\(1\.15,1\.05,1\)/,"Marina water must be large enough to read clearly from the circuit");
+assert.match(builder,/const harbourDepth=250/,"Marina must have a full-scale basin depth");
+assert.match(builder,/harbour\.geometry\.scale\(1\.4,1\.25,1\)/,"Marina water must be large enough to read clearly from the circuit");
 assert.match(builder,/new THREE\.ShapeGeometry\(harbourShape,32\)/,"Marina water must follow an irregular curved shoreline");
 assert.match(builder,/new THREE\.BoxGeometry\(5,1\.1,108\)/,"Marina must use one central finger pier, not a grid of docks");
 assert.match(builder,/clearFootprintOfCircuit\(harbourX,harbourZ,harbourWidth\+24,harbourDepth\+24,12\)/,"Entire marina footprint must be verified against the mapped road");
@@ -223,6 +223,8 @@ assert.match(builder,/extrudePath:tunnelPath/,"Tunnel arch must be one continuou
 assert.match(builder,/tunnelStartIndex=620,tunnelEndIndex=850/,"Tunnel must cover the mapped Portier-to-Nouvelle-Chicane section");
 assert.match(builder,/color:0x252a2d,roughness:.98,side:THREE\.DoubleSide/,"Tunnel concrete must remain dark inside");
 assert.match(builder,/tunnelGroup\.add\(tunnelShell\)/,"Continuous tunnel shell must be parented to the Monaco world");
+assert.match(builder,/const tunnelLiner=new THREE\.Mesh\(/,"Tunnel must have a light-blocking inner liner");
+assert.match(builder,/tunnelLiner\.castShadow=true/,"Inner tunnel liner must cast a continuous shadow");
 assert.match(builder,/new THREE\.PointLight\(0xffc982,2\.15,38,2\)/,"Tunnel must use subdued artificial point lighting");
 assert.match(builder,/tunnelLightMat/,"Tunnel must include overhead lighting");
 assert.match(builder,/new THREE\.PlaneGeometry\(groundW,groundD\)/,"Only a flat neutral base should remain behind the circuit");
