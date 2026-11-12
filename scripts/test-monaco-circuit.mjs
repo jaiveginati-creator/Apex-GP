@@ -225,7 +225,7 @@ assert.match(builder,/color:0x252a2d,roughness:.98,side:THREE\.DoubleSide/,"Tunn
 assert.match(builder,/tunnelGroup\.add\(tunnelShell\)/,"Continuous tunnel shell must be parented to the Monaco world");
 assert.match(builder,/const tunnelLiner=new THREE\.Mesh\(/,"Tunnel must have a light-blocking inner liner");
 assert.match(builder,/tunnelLiner\.castShadow=true/,"Inner tunnel liner must cast a continuous shadow");
-assert.match(builder,/new THREE\.PointLight\(0xffc982,2\.15,38,2\)/,"Tunnel must use subdued artificial point lighting");
+assert.match(builder,/new THREE\.PointLight\(0xffc982,1\.65,32,2\)/,"Tunnel must use subdued artificial point lighting");
 assert.match(builder,/tunnelLightMat/,"Tunnel must include overhead lighting");
 assert.match(builder,/new THREE\.PlaneGeometry\(groundW,groundD\)/,"Only a flat neutral base should remain behind the circuit");
 assert.match(html,/function updateMonacoTunnelEntryFlash\(\)/,"Monaco tunnel entry must trigger a one-time visual exposure flash");
