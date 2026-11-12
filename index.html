@@ -19107,10 +19107,9 @@ function updatePhysics(dt){
         const side=-Math.sign(trackInfo.lateral);
         const penetration=lateralDistance-barrierLimit;
 
-        /* Soft spring response: ease the car back inside instead
-           of snapping it to the boundary. The correction is capped
-           per frame, so contact feels like a scrape/deflection. */
-        const correction=Math.min(penetration,Math.max(.025,dt*18));
+        /* Enforce the legal boundary exactly; smooth tangent steering below
+           keeps the car sliding instead of freezing at the rail. */
+        const correction=penetration;
         player.position.addScaledVector(
             trackInfo.sample.normal,
             side*correction
@@ -19157,7 +19156,7 @@ function updatePhysics(dt){
                 Math.cos(targetHeading-player.rotation.y)
             );
             const headingBlend=
-                (1-Math.exp(-dt*4.2))*outwardAlignment;
+                (1-Math.exp(-dt*16))*outwardAlignment;
             player.rotation.y+=headingError*headingBlend;
         }
 
@@ -22483,7 +22482,9 @@ function updatePlayer2Drive(
 
         const side=-Math.sign(p2lateral);
         const penetration=lateralDistance-barrierLimit;
-        const correction=Math.min(penetration,Math.max(.025,dt*18));
+        /* Resolve the complete overlap this frame. A capped correction lets a fast car
+           tunnel farther through the rail than the collision response can recover. */
+        const correction=penetration;
 
         /* Gradually steer P2's actual travel direction along the
            barrier too; positional correction alone cannot counter
@@ -22515,7 +22516,7 @@ function updatePlayer2Drive(
                 Math.cos(targetHeading-ai.mesh.rotation.y)
             );
             ai.mesh.rotation.y+=headingError*
-                (1-Math.exp(-dt*4.2))*p2Outward;
+                (1-Math.exp(-dt*16))*p2Outward;
         }
 
         if(ai.collisionCooldown<=0){
