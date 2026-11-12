@@ -184,7 +184,7 @@ assert.match(builder,/yacht\.position\.set\(x,-1\.02,z\)/,"Yachts must be positi
 assert.match(builder,/const clearOfCircuit=\(x,z,minDistance=68\)/,"Scenery must be excluded from the racing corridor");
 assert.match(builder,/new THREE\.PlaneGeometry\(5200,5200\)/,"Monaco must have a large Mediterranean sea backdrop");
 assert.match(builder,/insideHarbour\(x,z,22\)/,"City buildings must not cover the marina basin");
-assert.match(builder,/for\(let i=0;i<13;i\+\+\)/,"Harbour must contain a fleet of yachts");
+assert.match(builder,/for\(let i=0;i<12;i\+\+\)/,"Harbour must contain a fleet of yachts");
 assert.match(builder,/for\(let i=0;i<150;i\+\+\)/,"Monaco must include landscaped greenery");
 assert.match(builder,/for\(const sampleIndex of \[115,330,585,840,1110,1370\]\)/,"Grandstands must be placed at multiple circuit locations");
 assert.match(builder,/new THREE\.ExtrudeGeometry\(tunnelShape/,"Monaco tunnel must use a continuous arched shell");
