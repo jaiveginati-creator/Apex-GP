@@ -37157,9 +37157,9 @@ function loadMonacoWorld(){
     /* Move Port Hercule into the visible waterfront pocket beside the
        mapped circuit and give it a full marina-scale footprint. */
     const harbourX=centerX+12;
-    const harbourZ=centerZ+190;
-    const harbourWidth=230;
-    const harbourDepth=250;
+    const harbourZ=centerZ+205;
+    const harbourWidth=210;
+    const harbourDepth=230;
     const insideHarbour=(x,z,margin=0)=>
         Math.abs(x-harbourX)<harbourWidth/2+margin&&
         Math.abs(z-harbourZ)<harbourDepth/2+margin;
@@ -37186,7 +37186,7 @@ function loadMonacoWorld(){
             clearcoat:1,clearcoatRoughness:.1
         })
     );
-    harbour.geometry.scale(1.4,1.25,1);
+    harbour.geometry.scale(1.22,1.12,1);
     harbour.rotation.x=-Math.PI/2;
     harbour.position.set(harbourX,-1.08,harbourZ);
     harbour.receiveShadow=true;
