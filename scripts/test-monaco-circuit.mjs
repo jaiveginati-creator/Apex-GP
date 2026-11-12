@@ -191,7 +191,7 @@ assert.ok(speed*Math.cos(outwardAngle)>79.9,"Tangent speed must be preserved dur
 
 for (const required of [
   "monacoMonteCarloCity","Casino de Monte-Carlo","Hotel de Paris",
-  "Mediterranean sea","Port Hercule","harbourWidth=160","yachtHullMat",
+  "Mediterranean sea","Port Hercule","harbourWidth=190","yachtHullMat",
   "palmTrunks","gardenTrees","Trackside grandstands","Street lighting",
   "Monaco hills","facadeWindows","facadeBalconies","monacoGrandPrixTunnel",
   "tunnelStartIndex=620","tunnelEndIndex=850","tunnelLightMat","new THREE.PointLight","new THREE.ExtrudeGeometry(hullShape","floatingOnHarbour"
