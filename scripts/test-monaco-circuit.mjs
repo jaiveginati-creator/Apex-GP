@@ -226,8 +226,10 @@ assert.match(builder,/tunnelStationFrame\(station\)/,"Every tunnel cross-section
 assert.match(builder,/monacoTunnelPortalRims/,"Both tunnel mouths must have concrete thickness rims");
 assert.doesNotMatch(builder,/ExtrudeGeometry\(tunnelShape|extrudePath:tunnelPath/,"The twisting swept extrusion must not return");
 assert.match(builder,/tunnelStartIndex=620,tunnelEndIndex=850/,"Tunnel must cover the mapped Portier-to-Nouvelle-Chicane section");
-assert.match(builder,/color:0x252a2d,roughness:.98,side:THREE\.DoubleSide/,"Tunnel concrete must remain dark inside");
-assert.match(builder,/new THREE\.PointLight\(0xffc982,1\.65,32,2\)/,"Tunnel must use subdued artificial point lighting");
+assert.match(builder,/color:0x030405,roughness:1,metalness:0/,"Tunnel liner must absorb ambient and daylight instead of being globally lit");
+assert.match(builder,/emissive:0x000000/,"Tunnel liner must not glow without artificial fixtures");
+assert.match(builder,/new THREE\.PointLight\(0xffb45c,4\.8,42,2\)/,"Tunnel must be illuminated by stronger warm artificial point lights only");
+assert.match(builder,/emissive:0xffa94d,emissiveIntensity:1\.35/,"Tunnel fixtures must visibly glow as artificial lights");
 assert.match(builder,/tunnelLightMat/,"Tunnel must include overhead lighting");
 assert.match(builder,/new THREE\.PlaneGeometry\(groundW,groundD\)/,"Only a flat neutral base should remain behind the circuit");
 assert.match(html,/function updateMonacoTunnelEntryFlash\(\)/,"Monaco tunnel entry must trigger a one-time visual exposure flash");
