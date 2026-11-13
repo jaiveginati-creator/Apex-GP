@@ -233,6 +233,10 @@ assert.match(builder,/emissive:0xffa94d,emissiveIntensity:1\.35/,"Tunnel fixture
 assert.match(builder,/tunnelLightMat/,"Tunnel must include overhead lighting");
 assert.match(builder,/const groundShape=new THREE\.Shape\(\)/,"Monaco peninsula must use a shaped land mesh around the harbour");
 assert.match(builder,/groundShape\.holes\.push\(harbourCutout\)/,"Port Hercule must be cut out of the land instead of rendered as a blue overlay");
+assert.match(builder,/harbourShape\.extractPoints\(64\)\.shape\.slice\(\)\.reverse\(\)/,"Harbour cutout contour must use Three.js hole winding");
+assert.match(builder,/point\.x\*1\.22\+\(harbourX-centerX\)/,"Harbour land cutout must match the visible water's horizontal scale");
+assert.match(builder,/point\.y\*1\.12\+\(centerZ-harbourZ\)/,"Harbour land cutout must match the visible water's depth scale");
+assert.match(builder,/harbour\.position\.set\(harbourX,-\.72,harbourZ\)/,"Harbour water must sit just below the raised coastline, not beneath the land");
 assert.match(builder,/new THREE\.ShapeGeometry\(groundShape,32\)/,"Coastline land geometry must preserve the harbour opening");
 assert.match(builder,/sea\.position\.set\(centerX,-1\.08,centerZ\)/,"Mediterranean sea must meet the harbour at the same waterline");
 assert.match(builder,/ground\.position\.set\(centerX,-\.65,centerZ\)/,"Coastline must sit above the sea surface");
