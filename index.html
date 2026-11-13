@@ -37184,9 +37184,15 @@ function loadMonacoWorld(){
     groundShape.lineTo(-groundW/2,groundD/2);
     groundShape.closePath();
     const harbourCutout=new THREE.Path();
-    const harbourContour=harbourShape.extractPoints(48).shape;
+    /* Three.js expects hole contours to wind opposite to the outer
+       polygon. The harbour water is enlarged below, so apply the exact
+       same local scale to the land cutout or the raised shore hides it. */
+    const harbourContour=harbourShape.extractPoints(64).shape.slice().reverse();
     harbourCutout.setFromPoints(harbourContour.map(point=>
-        new THREE.Vector2(point.x+(harbourX-centerX),point.y+(centerZ-harbourZ))
+        new THREE.Vector2(
+            point.x*1.22+(harbourX-centerX),
+            point.y*1.12+(centerZ-harbourZ)
+        )
     ));
     harbourCutout.closePath();
     groundShape.holes.push(harbourCutout);
@@ -37208,7 +37214,9 @@ function loadMonacoWorld(){
     );
     harbour.geometry.scale(1.22,1.12,1);
     harbour.rotation.x=-Math.PI/2;
-    harbour.position.set(harbourX,-1.065,harbourZ);
+    /* Raise basin water just below the land surface so it remains visible
+       inside the cutout instead of disappearing beneath the peninsula. */
+    harbour.position.set(harbourX,-.72,harbourZ);
     harbour.receiveShadow=true;
     monacoWorld.add(harbour);
 
