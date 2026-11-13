@@ -231,7 +231,14 @@ assert.match(builder,/emissive:0x000000/,"Tunnel liner must not glow without art
 assert.match(builder,/new THREE\.PointLight\(0xffb45c,4\.8,42,2\)/,"Tunnel must be illuminated by stronger warm artificial point lights only");
 assert.match(builder,/emissive:0xffa94d,emissiveIntensity:1\.35/,"Tunnel fixtures must visibly glow as artificial lights");
 assert.match(builder,/tunnelLightMat/,"Tunnel must include overhead lighting");
-assert.match(builder,/new THREE\.PlaneGeometry\(groundW,groundD\)/,"Only a flat neutral base should remain behind the circuit");
+assert.match(builder,/const groundShape=new THREE\.Shape\(\)/,"Monaco peninsula must use a shaped land mesh around the harbour");
+assert.match(builder,/groundShape\.holes\.push\(harbourCutout\)/,"Port Hercule must be cut out of the land instead of rendered as a blue overlay");
+assert.match(builder,/new THREE\.ShapeGeometry\(groundShape,32\)/,"Coastline land geometry must preserve the harbour opening");
+assert.match(builder,/sea\.position\.set\(centerX,-1\.08,centerZ\)/,"Mediterranean sea must meet the harbour at the same waterline");
+assert.match(builder,/ground\.position\.set\(centerX,-\.65,centerZ\)/,"Coastline must sit above the sea surface");
+assert.match(builder,/const baseY=-\.65/,"Monaco buildings must remain grounded on the raised peninsula");
+assert.match(builder,/harbourZ-z/,"Breakwater must follow the mirrored harbour shoreline orientation");
+assert.match(builder,/Math\.atan2\(-dz,dx\)/,"Breakwater sections must align their long axis with each curved segment");
 assert.match(html,/function updateMonacoTunnelEntryFlash\(\)/,"Monaco tunnel entry must trigger a one-time visual exposure flash");
 assert.match(html,/index>=620&&index<630/,"Tunnel flash must trigger only at the mapped tunnel entrance");
 assert.match(html,/index>870\|\|index<600/,"Tunnel flash must re-arm only after the car exits the tunnel");
