@@ -37414,8 +37414,12 @@ function loadMonacoWorld(){
     const tunnelConcrete=new THREE.MeshStandardMaterial({
         color:0x252a2d,roughness:.98,side:THREE.DoubleSide
     });
+    /* Near-black interior absorbs the global daylight/ambient fill.
+       Standard material is retained so only the recessed tunnel fixtures
+       visibly lift the surfaces as the car passes beneath them. */
     const tunnelInteriorMat=new THREE.MeshStandardMaterial({
-        color:0x101417,roughness:1,side:THREE.DoubleSide
+        color:0x030405,roughness:1,metalness:0,
+        emissive:0x000000,side:THREE.DoubleSide
     });
     const tunnelShell=makeTunnelSurface(tunnelOuterProfile,tunnelConcrete,"monacoTunnelOuterShell");
     const tunnelLiner=makeTunnelSurface(tunnelInnerProfile,tunnelInteriorMat,"monacoTunnelInnerLiner");
@@ -37450,7 +37454,7 @@ function loadMonacoWorld(){
     /* Recessed fixtures and low-output point lights are the only illumination
        inside the covered section. */
     const tunnelLightMat=new THREE.MeshStandardMaterial({
-        color:0x77664c,emissive:0x805321,emissiveIntensity:.48
+        color:0x2b2116,emissive:0xffa94d,emissiveIntensity:1.35
     });
     for(let i=tunnelStartIndex+6;i<tunnelEndIndex;i+=8){
         const sample=getTrackSample(i);
@@ -37458,7 +37462,7 @@ function loadMonacoWorld(){
         light.position.set(sample.p.x,sample.p.y+22,sample.p.z);
         light.rotation.y=getTrackTangentAngle(sample);
         tunnelGroup.add(light);
-        const lamp=new THREE.PointLight(0xffc982,1.65,32,2);
+        const lamp=new THREE.PointLight(0xffb45c,4.8,42,2);
         lamp.position.set(sample.p.x,sample.p.y+18,sample.p.z);
         tunnelGroup.add(lamp);
     }
